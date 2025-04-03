@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { analyzeDNASequence, AnalysisResult } from '@/utils/dnaUtils';
-import { Loader2 } from 'lucide-react';
+import { AnalysisResult } from '@/utils/dnaUtils';
+import { analyzeDNASequence as apiAnalyzeDNASequence } from '@/utils/api';
 import ResultsDisplay from './ResultsDisplay';
 
 interface SequenceAnalyzerProps {
@@ -16,21 +16,39 @@ const SequenceAnalyzer: React.FC<SequenceAnalyzerProps> = ({
   setIsAnalyzing 
 }) => {
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!sequence || !isAnalyzing) return;
 
-    // Simulate processing delay for UX purposes
-    const timer = setTimeout(() => {
-      const analysisResult = analyzeDNASequence(sequence);
-      setResult(analysisResult);
-      setIsAnalyzing(false);
-    }, 2000);
+    const performAnalysis = async () => {
+      try {
+        // Artificial delay for better UX
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        const analysisResult = await apiAnalyzeDNASequence(sequence);
+        if (analysisResult) {
+          setResult(analysisResult);
+          setError(null);
+        } else {
+          setError('Failed to analyze sequence. Please try again.');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        console.error('Analysis error:', err);
+      } finally {
+        setIsAnalyzing(false);
+      }
+    };
 
-    return () => clearTimeout(timer);
+    performAnalysis();
+
+    return () => {
+      // Cleanup if needed
+    };
   }, [sequence, isAnalyzing, setIsAnalyzing]);
 
-  if (!isAnalyzing && !result) return null;
+  if (!isAnalyzing && !result && !error) return null;
 
   return (
     <div className="w-full max-w-3xl mx-auto mt-8 animate-fade-in">
@@ -43,6 +61,13 @@ const SequenceAnalyzer: React.FC<SequenceAnalyzerProps> = ({
           <p className="text-lg font-medium text-dna-blue">Analyzing DNA sequence...</p>
           <p className="text-sm text-gray-500 mt-2">
             Identifying barcode regions and comparing to reference database
+          </p>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-md p-6 text-center">
+          <p className="text-red-600 font-medium">{error}</p>
+          <p className="text-sm text-gray-500 mt-2">
+            Please check your sequence and try again
           </p>
         </div>
       ) : result ? (

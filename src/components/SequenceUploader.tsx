@@ -1,12 +1,13 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { validateDNASequence, getSampleSequences } from '@/utils/dnaUtils';
+import { validateDNASequence } from '@/utils/dnaUtils';
+import { getSampleSequences } from '@/utils/api';
 import { toast } from '@/components/ui/use-toast';
+import { getSampleSequences as getLocalSampleSequences } from '@/utils/dnaUtils';
 
 interface SequenceUploaderProps {
   onSequenceSubmit: (sequence: string) => void;
@@ -15,7 +16,35 @@ interface SequenceUploaderProps {
 const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit }) => {
   const [sequence, setSequence] = useState('');
   const [isValid, setIsValid] = useState<boolean | null>(null);
-  const sampleSequences = getSampleSequences();
+  const [sampleSequences, setSampleSequences] = useState<{[key: string]: string}>({});
+  const [isLoadingSamples, setIsLoadingSamples] = useState(false);
+
+  useEffect(() => {
+    const loadSampleSequences = async () => {
+      setIsLoadingSamples(true);
+      try {
+        const apiSamples = await getSampleSequences();
+        if (Object.keys(apiSamples).length > 0) {
+          setSampleSequences(apiSamples);
+        } else {
+          // Fallback to local samples if API fails
+          setSampleSequences(getLocalSampleSequences());
+        }
+      } catch (error) {
+        console.error('Failed to load sample sequences:', error);
+        setSampleSequences(getLocalSampleSequences());
+        toast({
+          title: 'Warning',
+          description: 'Using local sample sequences. Backend connection failed.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingSamples(false);
+      }
+    };
+
+    loadSampleSequences();
+  }, []);
 
   const handleSequenceChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newSequence = e.target.value;
@@ -72,6 +101,7 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
     setIsValid(true);
   };
 
+  
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
@@ -138,21 +168,25 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
           </TabsContent>
           
           <TabsContent value="sample" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Object.keys(sampleSequences).map((name) => (
-                <Button 
-                  key={name}
-                  variant="outline" 
-                  className="h-auto py-4 px-3 flex flex-col items-center justify-center text-center"
-                  onClick={() => handleSampleSelect(name)}
-                >
-                  <span className="font-medium mb-1">{name}</span>
-                  <span className="text-xs font-mono text-gray-500">
-                    {sampleSequences[name].substring(0, 15)}...
-                  </span>
-                </Button>
-              ))}
-            </div>
+            {isLoadingSamples ? (
+              <div className="text-center py-4">Loading sample sequences...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {Object.keys(sampleSequences).map((name) => (
+                  <Button 
+                    key={name}
+                    variant="outline" 
+                    className="h-auto py-4 px-3 flex flex-col items-center justify-center text-center"
+                    onClick={() => handleSampleSelect(name)}
+                  >
+                    <span className="font-medium mb-1">{name}</span>
+                    <span className="text-xs font-mono text-gray-500">
+                      {sampleSequences[name].substring(0, 15)}...
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            )}
             {sequence && (
               <div className="sequence-container mt-4">
                 <p className="text-xs text-gray-500 mb-1">Selected sample:</p>
