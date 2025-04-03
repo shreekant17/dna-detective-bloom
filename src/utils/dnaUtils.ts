@@ -1,4 +1,6 @@
 
+import React from 'react';
+
 // Mock DNA barcode regions for demonstration
 const BARCODE_REGIONS = {
   ITS: 'CGTAACAAGGTTTCCGTAGGTGAACCTGCGGAAGGATCATTG',

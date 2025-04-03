@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Database, Flask, Dna, Microscope, PieChart, BookOpen } from 'lucide-react';
+import { Database, TestTube, Dna, Microscope, PieChart, BookOpen } from 'lucide-react';
 
 const InfoSection: React.FC = () => {
   return (
@@ -100,7 +100,7 @@ const InfoSection: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center text-dna-blue">
-                  <Flask className="mr-2 h-5 w-5" />
+                  <TestTube className="mr-2 h-5 w-5" />
                   Real-World Applications
                 </CardTitle>
                 <CardDescription>

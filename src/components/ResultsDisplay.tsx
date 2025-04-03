@@ -68,8 +68,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
               </div>
               <Progress 
                 value={result.matchPercentage} 
-                className="h-2" 
-                indicatorClassName={getMatchColor(result.matchPercentage)}
+                className={`h-2 ${getMatchColor(result.matchPercentage)}`}
               />
               <p className="text-sm text-gray-500">
                 {result.matchPercentage.toFixed(1)}% sequence similarity
