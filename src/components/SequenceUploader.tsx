@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, FileText, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +20,7 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
   const [isLoadingSamples, setIsLoadingSamples] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     const loadSampleSequences = async () => {
@@ -87,9 +87,18 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    if (!e.target.files) {
+      console.log("No files selected");
+      return;
+    }
+    
+    const file = e.target.files[0];
+    if (!file) {
+      console.log("No file found in selection");
+      return;
+    }
 
+    console.log("File selected:", file.name);
     setFileName(file.name);
     
     const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -107,7 +116,13 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const content = event.target?.result as string;
+        if (!event.target?.result) {
+          console.error('File read resulted in null content');
+          return;
+        }
+        
+        const content = event.target.result as string;
+        console.log("File content read, length:", content.length);
         let cleanedContent = content;
         
         // Handle FASTA format (remove header lines starting with >)
@@ -145,7 +160,8 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
       }
     };
     
-    reader.onerror = () => {
+    reader.onerror = (error) => {
+      console.error('FileReader error:', error);
       toast({
         title: "Error Reading File",
         description: "There was an error reading the file.",
@@ -161,23 +177,35 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
       fileInputRef.current.value = '';
     }
     setFileName(null);
+    setSequence('');
+    setIsValid(null);
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    setIsDragging(false);
     
     const files = e.dataTransfer.files;
     if (files.length > 0) {
+      console.log("File dropped:", files[0].name);
+      
       // Create a synthetic event object
       const syntheticEvent = {
         target: {
-          files: files
+          files
         }
       } as unknown as React.ChangeEvent<HTMLInputElement>;
       
@@ -190,6 +218,17 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
     setIsValid(true);
   };
 
+  const handleTabChange = (value: string) => {
+    // When switching to file upload tab, ensure the file input is reset
+    if (value === 'upload' && fileInputRef.current) {
+      // Wait for the tab change to complete before focusing
+      setTimeout(() => {
+        if (fileInputRef.current) {
+          fileInputRef.current.click();
+        }
+      }, 100);
+    }
+  };
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
@@ -200,7 +239,7 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="input">
+        <Tabs defaultValue="input" onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="input">Manual Input</TabsTrigger>
             <TabsTrigger value="upload">File Upload</TabsTrigger>
@@ -233,11 +272,17 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
           
           <TabsContent value="upload" className="space-y-4">
             <div 
-              className={`border-2 border-dashed rounded-lg p-6 text-center ${fileName ? 'border-dna-green bg-dna-green/5' : 'border-gray-300'}`}
+              className={`border-2 border-dashed rounded-lg p-6 text-center 
+                ${isDragging ? 'border-dna-blue bg-dna-blue/5' : ''}
+                ${fileName ? 'border-dna-green bg-dna-green/5' : 'border-gray-300'}`}
               onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <Upload className={`h-10 w-10 mx-auto mb-2 ${fileName ? 'text-dna-green' : 'text-gray-400'}`} />
+              <Upload className={`h-10 w-10 mx-auto mb-2 
+                ${isDragging ? 'text-dna-blue' : ''}
+                ${fileName ? 'text-dna-green' : 'text-gray-400'}`} 
+              />
               
               {fileName ? (
                 <div className="space-y-2">
@@ -269,11 +314,12 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".fasta,.txt,.fas"
+                      accept=".fasta,.fas,.txt"
                       onChange={handleFileUpload}
                       className="sr-only"
                     />
-                    <Button variant="outline" className="cursor-pointer">
+                    <Button variant="outline" className="cursor-pointer" 
+                      onClick={() => fileInputRef.current?.click()}>
                       <FileText className="h-4 w-4 mr-2" />
                       Select File
                     </Button>
