@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # MongoDB connection
-MONGO_URI = "mongodb+srv://shree:Shreekant0902@yopal.z6oba.mongodb.net/stock_db?retryWrites=true&w=majority&appName=yopal"  # Change this to your MongoDB connection string
+MONGO_URI = ""  # Change this to your MongoDB connection string
 client = MongoClient(MONGO_URI)
 db = client["dna"]  # Database name
 collection = db["barcodes"]  # Collection name
