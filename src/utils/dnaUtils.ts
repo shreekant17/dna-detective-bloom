@@ -9,7 +9,7 @@ const BARCODE_REGIONS = {
 };
 
 // Sample database of plant species DNA
-const DNA_DATABASE = [
+export const DNA_DATABASE = [
   { 
     id: 1, 
     species: 'Panax ginseng', 
