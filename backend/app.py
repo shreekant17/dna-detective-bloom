@@ -1,58 +1,26 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from pymongo import MongoClient
 import re
-import random
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-# Mock DNA barcode regions for demonstration
+# MongoDB connection
+MONGO_URI = "mongodb+srv://shree:Shreekant0902@yopal.z6oba.mongodb.net/stock_db?retryWrites=true&w=majority&appName=yopal"  # Change this to your MongoDB connection string
+client = MongoClient(MONGO_URI)
+db = client["dna"]  # Database name
+collection = db["barcodes"]  # Collection name
+
+# Reference DNA barcode regions (mock data for comparison)
 BARCODE_REGIONS = {
     "ITS": "CGTAACAAGGTTTCCGTAGGTGAACCTGCGGAAGGATCATTG",
     "RBCL": "ATGTCACCACAAACAGAGACTAAAGCAAGT",
     "MATK": "ACCCAGTCCATCTGGAAATCTTGGTTCAGG"
 }
 
-# Sample database of plant species DNA
-DNA_DATABASE = [
-    { 
-        "id": 1, 
-        "species": "Panax ginseng", 
-        "commonName": "Asian Ginseng",
-        "barcodes": { 
-            "ITS": "CGTAACAAGGTTTCCGTAGGTGAACCTGCGGAAGGATCATTGTCGAAACCTGCATAGCAGAA",
-            "RBCL": "ATGTCACCACAAACAGAGACTAAAGCAAGTGTTGGATTCAAAGCTGGTGTTAAA",
-            "MATK": "ACCCAGTCCATCTGGAAATCTTGGTTCAGGACTCCCCTTCTTATATAATTCT"
-        },
-        "authenticity": 0.97
-    },
-    { 
-        "id": 2, 
-        "species": "Ocimum basilicum", 
-        "commonName": "Sweet Basil",
-        "barcodes": { 
-            "ITS": "CGTAACAAGGTTTCCGTAGGTGAACCTGCGGAAGGATCATTGTCGAAACCTGCATAGCAGA",
-            "RBCL": "ATGTCACCACAAACAGAGACTAAAGCAAGTGTTGGATTCAAAGCTGGTGT",
-            "MATK": "ACCCAGTCCATCTGGAAATCTTGGTTCAGGACTCCCCCTATATAATTCT"
-        },
-        "authenticity": 0.95
-    },
-    { 
-        "id": 3, 
-        "species": "Curcuma longa", 
-        "commonName": "Turmeric",
-        "barcodes": { 
-            "ITS": "CGTAACAAGGTTTCCGTAGGTGAACCTGCGGAAGGATCATTGAGTGAAACCTGC",
-            "RBCL": "ATGTCACCACAAACAGAGACTAAAGCAAGTGTTGGATTTAAAGCTGGTGTT",
-            "MATK": "ACCCAGTCCATCTGGAAATCTTGGTTCAGGACTCCCTTCTATATAATTCTCATG"
-        },
-        "authenticity": 0.92
-    }
-]
-
 def validate_dna_sequence(sequence):
-    """Validates if a sequence is a proper DNA sequence (contains only A, T, G, C)"""
+    """Validates if a sequence contains only A, T, G, C"""
     clean_sequence = re.sub(r'\s', '', sequence.upper())
     return bool(re.match(r'^[ATGC]+$', clean_sequence))
 
@@ -71,15 +39,9 @@ def identify_barcode_region(sequence):
 
 def calculate_similarity(seq1, seq2):
     """Calculates similarity score between two sequences"""
-    # For demonstration, using a simple matching algorithm
     shortest_length = min(len(seq1), len(seq2))
-    matches = 0
-    
-    for i in range(shortest_length):
-        if seq1[i] == seq2[i]:
-            matches += 1
-    
-    return matches / shortest_length
+    matches = sum(1 for i in range(shortest_length) if seq1[i] == seq2[i])
+    return matches / shortest_length if shortest_length > 0 else 0
 
 def analyze_dna_sequence(sequence):
     """Analyzes a DNA sequence and returns the best match from the database"""
@@ -91,8 +53,11 @@ def analyze_dna_sequence(sequence):
     
     best_match = None
     highest_score = 0
-    
-    for plant in DNA_DATABASE:
+
+    # Fetch plant barcodes from MongoDB
+    plant_barcodes = collection.find({}, {"species": 1, "commonName": 1, "barcodes": 1, "authenticity": 1})
+
+    for plant in plant_barcodes:
         plant_barcode = plant["barcodes"].get(barcode_region)
         if plant_barcode:
             score = calculate_similarity(clean_sequence, plant_barcode)
@@ -126,11 +91,12 @@ def analyze_sequence():
 @app.route('/api/samples', methods=['GET'])
 def get_samples():
     samples = {}
-    for plant in DNA_DATABASE:
-        # Just use the first barcode we find for each plant
+    plants = collection.find({}, {"commonName": 1, "barcodes": 1})
+
+    for plant in plants:
         for barcode_type, sequence in plant["barcodes"].items():
             samples[plant["commonName"]] = sequence
-            break
+            break  # Only take the first barcode for each plant
     
     return jsonify(samples)
 
