@@ -132,14 +132,14 @@ export const analyzeDNASequence = (sequence: string): AnalysisResult | null => {
 /**
  * Formats a DNA sequence for display with color-coded nucleotides
  */
-export const formatDNASequence = (sequence: string): React.ReactNode => {
+export const formatDNASequence = (sequence: string): JSX.Element[] | null => {
   if (!sequence) return null;
   
   const cleanSequence = sequence.toUpperCase().replace(/\s/g, '');
   
   return cleanSequence.split('').map((nucleotide, index) => {
     const className = `nucleotide nucleotide-${nucleotide}`;
-    return <span key={index} className={className}>{nucleotide}</span>;
+    return React.createElement('span', { key: index, className }, nucleotide);
   });
 };
 
@@ -153,3 +153,4 @@ export const getSampleSequences = (): { [key: string]: string } => {
     "Turmeric": DNA_DATABASE[2].barcodes.MATK
   };
 };
+
