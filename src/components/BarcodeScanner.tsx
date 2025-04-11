@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Scan, Check, AlertCircle } from 'lucide-react';
+import { Scan, Check, AlertCircle, Camera, CameraOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
@@ -18,12 +18,14 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   const [hasCamera, setHasCamera] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraInitialized, setCameraInitialized] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   
   // Mock barcode data for simulation purposes
   const mockBarcodes = ["GINSENG123", "BASIL456", "TURMERIC789"];
 
   const startScanning = async () => {
     setErrorMessage(null);
+    setIsInitializing(true);
     
     try {
       console.log("Attempting to access camera...");
@@ -49,10 +51,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       if (videoRef.current) {
         console.log("Stream obtained, attaching to video element");
         videoRef.current.srcObject = stream;
+        videoRef.current.style.display = 'block';
         
-        // Ensure the video starts playing
-        videoRef.current.onloadedmetadata = () => {
-          console.log("Video metadata loaded, playing video");
+        // Force a repaint before play to ensure the video element is visible
+        setTimeout(() => {
           if (videoRef.current) {
             videoRef.current.play()
               .then(() => {
@@ -60,6 +62,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
                 setCameraInitialized(true);
                 setScanning(true);
                 setHasCamera(true);
+                setIsInitializing(false);
                 
                 // For demo purposes, after 3 seconds, "find" a random barcode
                 setTimeout(() => {
@@ -69,13 +72,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               .catch(err => {
                 console.error("Error playing video:", err);
                 setErrorMessage("Could not start video preview: " + err.message);
+                setIsInitializing(false);
               });
           }
-        };
+        }, 100);
       }
     } catch (error) {
       console.error("Camera access error:", error);
       setHasCamera(false);
+      setIsInitializing(false);
       setErrorMessage(`Camera access denied or not available: ${error instanceof Error ? error.message : 'Unknown error'}`);
       toast({
         title: "Camera Error",
@@ -159,7 +164,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     }
   };
 
+  // Check if the browser supports getUserMedia
+  const checkCameraSupport = (): boolean => {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  };
+
   useEffect(() => {
+    const isCameraSupported = checkCameraSupport();
+    if (!isCameraSupported) {
+      setHasCamera(false);
+      setErrorMessage("Your browser doesn't support camera access");
+      return;
+    }
+
     // Check if camera permissions exist
     const checkCameraPermission = async () => {
       try {
@@ -169,9 +186,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         if (videoDevices.length === 0) {
           setHasCamera(false);
           setErrorMessage("No camera detected on this device");
+        } else {
+          console.log("Found camera devices:", videoDevices.length);
         }
       } catch (error) {
         console.error("Error checking camera:", error);
+        setHasCamera(false);
+        setErrorMessage("Error accessing camera devices");
       }
     };
     
@@ -186,40 +207,63 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   return (
     <Card className="w-full">
       <CardContent className="p-4 space-y-4">
-        <div className="relative bg-black rounded-md overflow-hidden aspect-video">
-          {scanning ? (
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted 
-              className="w-full h-full object-cover"
-              style={{ display: cameraInitialized ? 'block' : 'none' }}
-            />
-          ) : (
-            <canvas 
-              ref={canvasRef} 
-              className="w-full h-full object-cover"
-            />
-          )}
+        <div className="relative bg-black rounded-md overflow-hidden aspect-video flex items-center justify-center">
+          {/* Video element for camera preview */}
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            muted 
+            className="w-full h-full object-cover"
+            style={{ display: scanning && cameraInitialized ? 'block' : 'none' }}
+          />
           
-          {scanning && !cameraInitialized && (
-            <div className="absolute inset-0 flex items-center justify-center text-white">
-              Initializing camera...
+          {/* Canvas for displaying captured frame */}
+          <canvas 
+            ref={canvasRef} 
+            className="w-full h-full object-cover"
+            style={{ display: !scanning ? 'block' : 'none' }}
+          />
+          
+          {/* Loading state */}
+          {isInitializing && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
+              <div className="flex flex-col items-center">
+                <Camera className="h-8 w-8 animate-pulse mb-2" />
+                <span>Initializing camera...</span>
+              </div>
             </div>
           )}
           
+          {/* Camera not initialized yet */}
+          {scanning && !cameraInitialized && !isInitializing && (
+            <div className="absolute inset-0 flex items-center justify-center text-white">
+              <span>Waiting for camera access...</span>
+            </div>
+          )}
+          
+          {/* Show scanning UI */}
           {scanning && cameraInitialized && (
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/4 h-1/4 border-2 border-green-500 rounded opacity-70"></div>
               <div className="absolute top-0 left-0 w-full h-full border-t-2 border-green-500 animate-scan"></div>
             </div>
           )}
+          
+          {/* Show "no camera" placeholder when not scanning */}
+          {!scanning && !isInitializing && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex flex-col items-center text-white">
+                <CameraOff className="h-12 w-12 mb-2 opacity-50" />
+                <span className="text-center opacity-70">Camera inactive</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {errorMessage && (
-          <div className="flex items-center text-red-600 text-sm">
-            <AlertCircle className="h-4 w-4 mr-2" />
+          <div className="flex items-center text-red-600 text-sm p-2 bg-red-50 rounded">
+            <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
@@ -236,10 +280,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
             <Button 
               onClick={startScanning}
               className="bg-dna-teal hover:bg-dna-blue"
-              disabled={!hasCamera}
+              disabled={!hasCamera || isInitializing}
             >
-              <Scan className="h-4 w-4 mr-2" />
-              Scan Barcode
+              {isInitializing ? (
+                <span className="flex items-center">
+                  <span className="h-4 w-4 mr-2 rounded-full border-2 border-white border-t-transparent animate-spin"></span>
+                  Accessing Camera...
+                </span>
+              ) : (
+                <>
+                  <Scan className="h-4 w-4 mr-2" />
+                  Scan Barcode
+                </>
+              )}
             </Button>
           )}
         </div>
