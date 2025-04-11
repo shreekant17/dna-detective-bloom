@@ -5,7 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import { validateDNASequence } from '@/utils/dnaUtils';
-import { extractDNAFromBarcode, isValidBarcode, createBarcodeReader, processBarcodeResult } from '@/utils/barcodeUtils';
+import { 
+  extractDNAFromBarcode, 
+  isValidBarcode, 
+  createBarcodeReader, 
+  processBarcodeResult,
+  getOptimalCameraConstraints
+} from '@/utils/barcodeUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface BarcodeScannerProps {
@@ -23,6 +29,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   const [scanResult, setScanResult] = useState<string | null>(null);
   const readerRef = useRef<any>(null);
   const isMobile = useIsMobile();
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Check if the browser supports getUserMedia
   const checkCameraSupport = (): boolean => {
@@ -35,9 +42,14 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     setScanResult(null);
     
     try {
-      console.log("Attempting to access camera...");
+      console.log("Attempting to access camera... Mobile device?", isMobile);
       
-      // Stop any existing streams
+      // First, ensure any previous stream is stopped
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
         tracks.forEach(track => track.stop());
@@ -48,62 +60,120 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       if (!readerRef.current) {
         console.log("Creating barcode reader");
         readerRef.current = createBarcodeReader();
-      }
-      
-      // Configure camera
-      const facingMode = isMobile ? "environment" : "user";
-      console.log("Using camera facing mode:", facingMode);
-      
-      const constraints = { 
-        video: { 
-          facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        } 
-      };
-      
-      console.log("Requesting media with constraints:", constraints);
-      
-      // Initialize camera
-      if (videoRef.current) {
+      } else {
+        // Reset reader if it exists
         try {
-          await readerRef.current.decodeFromConstraints(
-            constraints,
-            videoRef.current,
-            (result, error) => {
-              if (result) {
-                console.log("Barcode detected:", result);
-                handleBarcodeDetected(result);
-              }
-              if (error) {
-                // Only log errors that aren't just "no barcode found"
-                if (error.name !== "NotFoundException") {
-                  console.error("Scanning error:", error);
-                }
-              }
-            }
-          );
-          
-          console.log("Camera initialized successfully");
-          setScanning(true);
-          setCameraInitialized(true);
-          setHasCamera(true);
-          videoRef.current.style.display = 'block';
-        } catch (cameraError) {
-          console.error("Error starting camera stream:", cameraError);
-          setErrorMessage(`Camera initialization failed: ${cameraError instanceof Error ? cameraError.message : 'Unknown error'}`);
+          readerRef.current.reset();
+        } catch (e) {
+          console.log("Error resetting reader, creating new one", e);
+          readerRef.current = createBarcodeReader();
         }
       }
       
-      setIsInitializing(false);
-    } catch (error) {
-      console.error("Camera access error:", error);
+      // Get optimal constraints based on device type
+      const constraints = getOptimalCameraConstraints(isMobile);
+      console.log("Using camera constraints:", JSON.stringify(constraints));
+            
+      // Initialize camera directly with getUserMedia first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream;
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.style.display = 'block';
+          
+          // Wait for video to be ready before starting decoder
+          videoRef.current.onloadedmetadata = () => {
+            console.log("Video metadata loaded, dimensions:", 
+              videoRef.current?.videoWidth, "×", videoRef.current?.videoHeight);
+            
+            if (readerRef.current && videoRef.current) {
+              console.log("Starting continuous decode from video element");
+              
+              // Start continuous decoding using the video element
+              readerRef.current.decodeFromVideoElement(videoRef.current, (result: any, error: any) => {
+                if (result) {
+                  console.log("Barcode detected:", result);
+                  handleBarcodeDetected(result);
+                }
+                if (error && error.name !== "NotFoundException") {
+                  console.error("Scanning error:", error);
+                }
+              }).catch((err: any) => {
+                console.error("Error during continuous decode:", err);
+                setErrorMessage(`Scanner error: ${err.message || "Unknown error"}`);
+              });
+              
+              setCameraInitialized(true);
+              setScanning(true);
+              setHasCamera(true);
+              setIsInitializing(false);
+            }
+          };
+          
+          videoRef.current.onerror = () => {
+            console.error("Video element error");
+            setErrorMessage("Video initialization failed");
+            setIsInitializing(false);
+          };
+          
+          // Force play the video
+          videoRef.current.play().catch(e => {
+            console.error("Error playing video:", e);
+            setErrorMessage(`Could not play video: ${e.message}`);
+            setIsInitializing(false);
+          });
+        }
+      } catch (cameraError: any) {
+        console.error("Error accessing camera directly:", cameraError);
+        
+        // Fallback to the decoder's built-in camera access method
+        try {
+          if (videoRef.current) {
+            console.log("Falling back to decoder's camera access method");
+            
+            await readerRef.current.decodeFromConstraints(
+              constraints,
+              videoRef.current,
+              (result: any, error: any) => {
+                if (result) {
+                  console.log("Barcode detected (fallback method):", result);
+                  handleBarcodeDetected(result);
+                }
+                if (error && error.name !== "NotFoundException") {
+                  console.error("Scanning error (fallback):", error);
+                }
+              }
+            );
+            
+            setCameraInitialized(true);
+            setScanning(true);
+            setHasCamera(true);
+            setIsInitializing(false);
+          }
+        } catch (fallbackError: any) {
+          console.error("Fallback camera method also failed:", fallbackError);
+          setErrorMessage(`Camera access failed: ${fallbackError.message || cameraError.message || "Unknown error"}`);
+          setHasCamera(false);
+          setIsInitializing(false);
+          
+          toast({
+            title: "Camera Error",
+            description: "Could not access camera. Please check permissions and try again.",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error("General camera access error:", error);
       setHasCamera(false);
       setIsInitializing(false);
-      setErrorMessage(`Camera access denied or not available: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setErrorMessage(`Camera access error: ${error.message || "Unknown error"}`);
+      
       toast({
         title: "Camera Error",
-        description: "Could not access camera. Please check permissions.",
+        description: "Could not access camera. Please check permissions and try again.",
         variant: "destructive",
       });
     }
@@ -111,6 +181,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
   const stopScanning = () => {
     console.log("Stopping scanner...");
+    
     if (readerRef.current) {
       try {
         readerRef.current.reset();
@@ -120,10 +191,20 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       }
     }
     
+    // Stop stream from streamRef first (direct access)
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        console.log("Stopping track from streamRef:", track.kind);
+        track.stop();
+      });
+      streamRef.current = null;
+    }
+    
+    // Also stop any stream attached to the video element
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach(track => {
-        console.log("Stopping track:", track.kind);
+        console.log("Stopping track from video element:", track.kind);
         track.stop();
       });
       videoRef.current.srcObject = null;
@@ -214,11 +295,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         // Just check if we can get a list of devices
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
         if (videoDevices.length === 0) {
           setHasCamera(false);
           setErrorMessage("No camera detected on this device");
         } else {
           console.log("Found camera devices:", videoDevices.length);
+          
+          // On mobile, log all available devices to help debugging
+          if (isMobile) {
+            console.log("Available video devices:", videoDevices.map(d => 
+              `${d.kind}: ${d.label || 'unnamed'} (${d.deviceId.substring(0, 8)}...)`
+            ));
+          }
         }
       } catch (error) {
         console.error("Error checking camera:", error);
@@ -242,7 +331,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         }
       }
     };
-  }, []);
+  }, [isMobile]);
 
   return (
     <Card className="w-full">

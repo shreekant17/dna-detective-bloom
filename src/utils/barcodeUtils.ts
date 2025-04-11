@@ -2,7 +2,7 @@
 /**
  * Utility functions for working with DNA barcodes
  */
-import { BrowserMultiFormatReader, Result, BarcodeFormat } from '@zxing/library';
+import { BrowserMultiFormatReader, Result, BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 // Extract DNA sequence from barcode data
 export const extractDNAFromBarcode = (barcodeData: string): string | null => {
@@ -38,11 +38,12 @@ export const isValidBarcode = (code: string): boolean => {
   return isValid;
 };
 
-// Create a barcode reader instance
+// Create a barcode reader instance with optimizations for mobile
 export const createBarcodeReader = (): BrowserMultiFormatReader => {
   const hints = new Map();
+  
   // Set formats to scan for - common barcode formats
-  hints.set(2, [
+  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
     BarcodeFormat.QR_CODE,
     BarcodeFormat.DATA_MATRIX,
     BarcodeFormat.CODE_128,
@@ -53,10 +54,39 @@ export const createBarcodeReader = (): BrowserMultiFormatReader => {
     BarcodeFormat.UPC_E
   ]);
   
+  // Additional hints to improve mobile performance
+  hints.set(DecodeHintType.TRY_HARDER, true);
+  hints.set(DecodeHintType.ASSUME_GS1, false);
+  
   return new BrowserMultiFormatReader(hints);
 };
 
 // Process a successful scan result
 export const processBarcodeResult = (result: Result): string => {
   return result.getText();
+};
+
+// Function to handle camera selection for mobile devices
+export const getOptimalCameraConstraints = (isMobile: boolean): MediaStreamConstraints => {
+  if (isMobile) {
+    // Mobile devices: prefer back camera with high resolution
+    return {
+      video: {
+        facingMode: { exact: "environment" },
+        width: { min: 640, ideal: 1280, max: 1920 },
+        height: { min: 480, ideal: 720, max: 1080 },
+        aspectRatio: { ideal: 1.7777777778 }
+      },
+      audio: false
+    };
+  } else {
+    // Desktop devices: standard webcam
+    return {
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+  }
 };
