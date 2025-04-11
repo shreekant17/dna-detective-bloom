@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import { validateDNASequence } from '@/utils/dnaUtils';
-import { extractDNAFromBarcode, isValidBarcode } from '@/utils/barcodeUtils';
+import { extractDNAFromBarcode, isValidBarcode, createBarcodeReader, processBarcodeResult } from '@/utils/barcodeUtils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface BarcodeScannerProps {
   onSequenceFound: (sequence: string) => void;
@@ -19,13 +20,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cameraInitialized, setCameraInitialized] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
-  
-  // Mock barcode data for simulation purposes
-  const mockBarcodes = ["GINSENG123", "BASIL456", "TURMERIC789"];
+  const [scanResult, setScanResult] = useState<string | null>(null);
+  const readerRef = useRef<any>(null);
+  const isMobile = useIsMobile();
+
+  // Check if the browser supports getUserMedia
+  const checkCameraSupport = (): boolean => {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  };
 
   const startScanning = async () => {
     setErrorMessage(null);
     setIsInitializing(true);
+    setScanResult(null);
     
     try {
       console.log("Attempting to access camera...");
@@ -37,46 +44,58 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         videoRef.current.srcObject = null;
       }
       
+      // Create barcode reader if doesn't exist
+      if (!readerRef.current) {
+        console.log("Creating barcode reader");
+        readerRef.current = createBarcodeReader();
+      }
+      
+      // Configure camera
+      const facingMode = isMobile ? "environment" : "user";
+      console.log("Using camera facing mode:", facingMode);
+      
       const constraints = { 
         video: { 
-          facingMode: "environment",
+          facingMode,
           width: { ideal: 1280 },
           height: { ideal: 720 }
         } 
       };
       
       console.log("Requesting media with constraints:", constraints);
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
+      // Initialize camera
       if (videoRef.current) {
-        console.log("Stream obtained, attaching to video element");
-        videoRef.current.srcObject = stream;
-        videoRef.current.style.display = 'block';
-        
-        // Force a repaint before play to ensure the video element is visible
-        setTimeout(() => {
-          if (videoRef.current) {
-            videoRef.current.play()
-              .then(() => {
-                console.log("Video playing successfully");
-                setCameraInitialized(true);
-                setScanning(true);
-                setHasCamera(true);
-                setIsInitializing(false);
-                
-                // For demo purposes, after 3 seconds, "find" a random barcode
-                setTimeout(() => {
-                  simulateBarcodeFound();
-                }, 3000);
-              })
-              .catch(err => {
-                console.error("Error playing video:", err);
-                setErrorMessage("Could not start video preview: " + err.message);
-                setIsInitializing(false);
-              });
-          }
-        }, 100);
+        try {
+          await readerRef.current.decodeFromConstraints(
+            constraints,
+            videoRef.current,
+            (result, error) => {
+              if (result) {
+                console.log("Barcode detected:", result);
+                handleBarcodeDetected(result);
+              }
+              if (error) {
+                // Only log errors that aren't just "no barcode found"
+                if (error.name !== "NotFoundException") {
+                  console.error("Scanning error:", error);
+                }
+              }
+            }
+          );
+          
+          console.log("Camera initialized successfully");
+          setScanning(true);
+          setCameraInitialized(true);
+          setHasCamera(true);
+          videoRef.current.style.display = 'block';
+        } catch (cameraError) {
+          console.error("Error starting camera stream:", cameraError);
+          setErrorMessage(`Camera initialization failed: ${cameraError instanceof Error ? cameraError.message : 'Unknown error'}`);
+        }
       }
+      
+      setIsInitializing(false);
     } catch (error) {
       console.error("Camera access error:", error);
       setHasCamera(false);
@@ -92,6 +111,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
   const stopScanning = () => {
     console.log("Stopping scanner...");
+    if (readerRef.current) {
+      try {
+        readerRef.current.reset();
+        console.log("Barcode reader reset");
+      } catch (error) {
+        console.error("Error resetting barcode reader:", error);
+      }
+    }
+    
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach(track => {
@@ -100,25 +128,26 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       });
       videoRef.current.srcObject = null;
     }
+    
     setScanning(false);
     setCameraInitialized(false);
   };
 
-  const simulateBarcodeFound = () => {
-    // For demo purposes, pick a random barcode
-    const randomBarcode = mockBarcodes[Math.floor(Math.random() * mockBarcodes.length)];
-    console.log("Simulating barcode found:", randomBarcode);
+  const handleBarcodeDetected = (result: any) => {
+    const barcodeData = processBarcodeResult(result);
+    console.log("Processing barcode:", barcodeData);
+    setScanResult(barcodeData);
     
-    if (isValidBarcode(randomBarcode)) {
-      const dnaSequence = extractDNAFromBarcode(randomBarcode);
+    if (isValidBarcode(barcodeData)) {
+      const dnaSequence = extractDNAFromBarcode(barcodeData);
       
       if (dnaSequence && validateDNASequence(dnaSequence)) {
-        captureFrame(randomBarcode);
+        captureFrame(barcodeData);
         stopScanning();
         
         toast({
           title: "Barcode Detected",
-          description: `Found barcode: ${randomBarcode}`,
+          description: `Found barcode: ${barcodeData}`,
         });
         
         onSequenceFound(dnaSequence);
@@ -130,6 +159,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           variant: "destructive",
         });
       }
+    } else {
+      console.log("Invalid barcode format detected");
+      toast({
+        title: "Invalid Barcode Format",
+        description: "The scanned barcode is not in a recognized format.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -164,11 +200,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     }
   };
 
-  // Check if the browser supports getUserMedia
-  const checkCameraSupport = (): boolean => {
-    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  };
-
   useEffect(() => {
     const isCameraSupported = checkCameraSupport();
     if (!isCameraSupported) {
@@ -201,6 +232,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     return () => {
       // Cleanup: ensure camera is turned off when component unmounts
       stopScanning();
+      
+      // Clean up the barcode reader
+      if (readerRef.current) {
+        try {
+          readerRef.current.reset();
+        } catch (error) {
+          console.error("Error cleaning up barcode reader:", error);
+        }
+      }
     };
   }, []);
 
@@ -260,6 +300,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
             </div>
           )}
         </div>
+
+        {scanResult && (
+          <div className="p-2 bg-green-50 border border-green-200 rounded text-sm">
+            <p className="font-medium text-green-700">Detected barcode:</p>
+            <p className="font-mono">{scanResult}</p>
+          </div>
+        )}
 
         {errorMessage && (
           <div className="flex items-center text-red-600 text-sm p-2 bg-red-50 rounded">

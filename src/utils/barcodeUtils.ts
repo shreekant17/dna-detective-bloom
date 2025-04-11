@@ -2,9 +2,9 @@
 /**
  * Utility functions for working with DNA barcodes
  */
+import { BrowserMultiFormatReader, Result, BarcodeFormat } from '@zxing/library';
 
-// This is a simplified demonstration function to extract DNA sequences from barcodes
-// In a real application, this would involve more sophisticated parsing based on the barcode format
+// Extract DNA sequence from barcode data
 export const extractDNAFromBarcode = (barcodeData: string): string | null => {
   // Basic check to see if the barcode data might contain DNA
   if (/^[ATGC]+$/.test(barcodeData)) {
@@ -36,4 +36,27 @@ export const isValidBarcode = (code: string): boolean => {
   const isValid = /^[A-Z0-9]+$/.test(code) && code.length >= 8;
   console.log(`Validating barcode "${code}": ${isValid}`);
   return isValid;
+};
+
+// Create a barcode reader instance
+export const createBarcodeReader = (): BrowserMultiFormatReader => {
+  const hints = new Map();
+  // Set formats to scan for - common barcode formats
+  hints.set(2, [
+    BarcodeFormat.QR_CODE,
+    BarcodeFormat.DATA_MATRIX,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8,
+    BarcodeFormat.UPC_A,
+    BarcodeFormat.UPC_E
+  ]);
+  
+  return new BrowserMultiFormatReader(hints);
+};
+
+// Process a successful scan result
+export const processBarcodeResult = (result: Result): string => {
+  return result.getText();
 };
