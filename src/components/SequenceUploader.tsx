@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, ScanBarcode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,6 +8,7 @@ import { validateDNASequence } from '@/utils/dnaUtils';
 import { getSampleSequences } from '@/utils/api';
 import { toast } from '@/components/ui/use-toast';
 import { getSampleSequences as getLocalSampleSequences } from '@/utils/dnaUtils';
+import BarcodeScanner from './BarcodeScanner';
 
 interface SequenceUploaderProps {
   onSequenceSubmit: (sequence: string) => void;
@@ -229,21 +230,31 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
       }, 100);
     }
   };
+
+  const handleBarcodeSequenceFound = (sequence: string) => {
+    setSequence(sequence);
+    setIsValid(true);
+    toast({
+      title: "DNA Sequence Extracted",
+      description: "Barcode successfully scanned and DNA sequence extracted.",
+    });
+  };
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle className="text-dna-blue">DNA Sequence Input</CardTitle>
         <CardDescription>
-          Enter a DNA sequence to analyze, upload a FASTA file, or select a sample.
+          Enter a DNA sequence to analyze, upload a FASTA file, select a sample, or scan a barcode.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="input" onValueChange={handleTabChange}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="input">Manual Input</TabsTrigger>
             <TabsTrigger value="upload">File Upload</TabsTrigger>
             <TabsTrigger value="sample">Sample Sequences</TabsTrigger>
+            <TabsTrigger value="barcode">Scan Barcode</TabsTrigger>
           </TabsList>
           
           <TabsContent value="input" className="space-y-4">
@@ -382,6 +393,23 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
               <div className="sequence-container mt-4">
                 <p className="text-xs text-gray-500 mb-1">Selected sample:</p>
                 {sequence.substring(0, 100)}...
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="barcode" className="space-y-4">
+            <BarcodeScanner onSequenceFound={handleBarcodeSequenceFound} />
+            
+            {sequence && (
+              <div className="mt-4 p-3 bg-gray-50 rounded border border-gray-200 font-mono">
+                <p className="text-xs text-gray-500 mb-1">Extracted sequence from barcode:</p>
+                <div className="text-sm overflow-hidden text-ellipsis">
+                  {sequence.length > 120 ? (
+                    <>{sequence.substring(0, 100)}... <span className="text-gray-500 text-xs">({sequence.length} characters)</span></>
+                  ) : (
+                    sequence
+                  )}
+                </div>
               </div>
             )}
           </TabsContent>
