@@ -13,7 +13,8 @@ import {
   checkBrowserCompatibility
 } from '@/utils/barcodeUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import QrScanner from 'react-qr-scanner';
 
 interface BarcodeScannerProps {
   onSequenceFound: (sequence: string) => void;
@@ -39,7 +40,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
 
   // Function to release camera resources
-  const releaseCamera = useCallback(() => {
+  const releaseCamera = async () => {
     console.log("Releasing camera resources...");
 
     // Clear scanning interval
@@ -76,10 +77,16 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
     setScanning(false);
     setCameraInitialized(false);
-  }, []);
+  };
 
   // Check browser compatibility and camera permissions
   const checkDeviceSupport = useCallback(async () => {
+    if (cameraInitialized) {
+      console.log("Camera already initialized, skipping device support check");
+      return true;
+    }
+
+    console.log("Starting device support check...");
     const compatibility = checkBrowserCompatibility();
 
     if (!compatibility.isCompatible) {
@@ -136,14 +143,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       setErrorMessage(`Error accessing camera: ${(error as Error).message || "Unknown error"}`);
       return false;
     }
-  }, [isMobile]);
+  }, [isMobile, cameraInitialized]);
 
   // Manual frame capture and processing for better performance
   const captureAndDecode = useCallback(() => {
-    if (!videoRef.current || !readerRef.current || !canvasRef.current || !streamRef.current) {
+    if (!videoRef.current || !canvasRef.current || !streamRef.current) {
       console.log("Missing required refs for scanning:", {
         video: !!videoRef.current,
-        reader: !!readerRef.current,
         canvas: !!canvasRef.current,
         stream: !!streamRef.current
       });
@@ -152,6 +158,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
     try {
       const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        console.error("Could not get canvas context");
+        return;
+      }
 
       // Check if video is ready
       if (video.readyState !== 4) {
@@ -170,21 +183,45 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         console.log(`Processing frame: ${video.videoWidth}x${video.videoHeight}, scan mode: ${scanMode}`);
       }
 
-      // Use the reader's decode method directly on the video element
-      try {
-        const result = readerRef.current.decode(video);
+      // Set canvas dimensions to match video
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+      }
 
-        if (result && typeof result.getText === 'function') {
-          const text = result.getText();
-          console.log("Barcode detected:", text);
-          handleBarcodeDetected(result);
+      // Draw the current frame to canvas
+      context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+
+      // Get image data from canvas
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Use different decoding methods based on scan mode
+      if (scanMode === 'qr') {
+        // QR code scanning is now handled by react-qr-scanner
+        // This function is only used for barcode scanning
+        return;
+      } else {
+        // Use ZXing for traditional barcodes
+        if (!readerRef.current) {
+          console.error("Barcode reader not initialized");
+          return;
         }
-      } catch (error) {
-        // Most errors will be "not found" which is expected
-        if ((error as Error).name !== 'NotFoundException') {
-          // Only log non-NotFoundException errors occasionally to reduce console noise
-          if (Math.random() < 0.1) { // Log roughly 10% of the time
-            console.error("Decoding error:", error);
+
+        try {
+          const result = readerRef.current.decode(video);
+
+          if (result && typeof result.getText === 'function') {
+            const text = result.getText();
+            console.log("Barcode detected:", text);
+            handleBarcodeDetected(result);
+          }
+        } catch (error) {
+          // Most errors will be "not found" which is expected
+          if ((error as Error).name !== 'NotFoundException') {
+            // Only log non-NotFoundException errors occasionally to reduce console noise
+            if (Math.random() < 0.1) { // Log roughly 10% of the time
+              console.error("Barcode decoding error:", error);
+            }
           }
         }
       }
@@ -194,130 +231,208 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   }, [scanMode]);
 
   const startScanning = async () => {
+    console.log("Starting camera initialization process...");
     setErrorMessage(null);
     setIsInitializing(true);
     setScanResult(null);
 
     try {
       // First check if device has camera support
+      console.log("Checking device support...");
       const hasSupport = await checkDeviceSupport();
       if (!hasSupport) {
+        console.log("Device support check failed");
         setIsInitializing(false);
         return;
       }
+      console.log("Device support check passed");
 
       console.log(`Starting camera on ${isMobile ? 'mobile' : 'desktop'} device with facing mode: ${facingMode}`);
 
-      // Ensure any previous resources are released
-      releaseCamera();
+      // Only release camera if we're already scanning
+      if (scanning) {
+        console.log("Already scanning, releasing previous camera resources...");
+        await releaseCamera();
+        console.log("Previous camera resources released");
+      }
 
-      // Always create a new barcode reader to ensure it's configured for the current mode
-      console.log("Creating barcode reader for mode:", scanMode);
-      readerRef.current = createBarcodeReader(scanMode);
+      // Only create a barcode reader if we're in barcode mode
+      if (scanMode === 'barcode') {
+        console.log("Creating barcode reader for mode:", scanMode);
+        readerRef.current = createBarcodeReader(scanMode);
 
-      try {
-        // Create constraints with explicit facing mode
-        const constraints = {
-          video: {
-            facingMode: facingMode,
-            width: { ideal: scanMode === 'qr' ? 1280 : 1920 },
-            height: { ideal: scanMode === 'qr' ? 720 : 1080 }
-          },
-          audio: false
-        };
+        try {
+          // Try with minimal constraints first
+          const constraints = {
+            video: {
+              facingMode: facingMode,
+              width: { min: 640, ideal: 1280, max: 1920 },
+              height: { min: 480, ideal: 720, max: 1080 }
+            },
+            audio: false
+          };
 
-        console.log("Using camera constraints:", JSON.stringify(constraints));
+          console.log("Attempting to access camera with constraints:", JSON.stringify(constraints));
 
-        // Attempt to get camera stream
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        streamRef.current = stream;
+          // Check if getUserMedia is supported
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("getUserMedia is not supported in this browser");
+          }
 
-        if (videoRef.current) {
+          // Attempt to get camera stream
+          console.log("Requesting camera stream...");
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          console.log("Camera stream obtained successfully");
+          streamRef.current = stream;
+
+          if (!videoRef.current) {
+            throw new Error("Video element reference is not available");
+          }
+
+          // Set up video element
+          console.log("Setting up video element...");
           videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true'); // Required for iOS
+          videoRef.current.setAttribute('autoplay', 'true');
+          videoRef.current.setAttribute('muted', 'true');
 
           // Set up event handlers for the video element
           videoRef.current.onloadedmetadata = () => {
-            console.log(`Video ready: ${videoRef.current?.videoWidth || 0}×${videoRef.current?.videoHeight || 0}`);
+            console.log("Video metadata loaded event fired");
+            console.log(`Video dimensions: ${videoRef.current?.videoWidth || 0}×${videoRef.current?.videoHeight || 0}`);
 
-            if (videoRef.current) {
-              videoRef.current.play().catch(e => {
+            if (!videoRef.current) {
+              console.error("Video element reference lost during metadata loading");
+              throw new Error("Video element reference lost during metadata loading");
+            }
+
+            // Ensure video dimensions are valid
+            if (videoRef.current.videoWidth <= 0 || videoRef.current.videoHeight <= 0) {
+              console.error("Invalid video dimensions detected");
+              throw new Error("Invalid video dimensions");
+            }
+
+            console.log("Attempting to play video...");
+            videoRef.current.play()
+              .then(() => {
+                console.log("Video playback started successfully");
+                setCameraInitialized(true);
+                setScanning(true);
+                setHasCamera(true);
+                setIsInitializing(false);
+
+                // Start capturing frames at regular intervals for decoding
+                if (decodeIntervalRef.current) {
+                  window.clearInterval(decodeIntervalRef.current);
+                }
+
+                const interval = 300; // 300ms for barcode scanning
+                console.log(`Setting scan interval to ${interval}ms for barcode mode`);
+                decodeIntervalRef.current = window.setInterval(captureAndDecode, interval);
+              })
+              .catch(e => {
                 console.error("Error playing video:", e);
-                throw e; // Re-throw to be caught by outer try-catch
+                setErrorMessage("Error starting video playback: " + e.message);
+                setIsInitializing(false);
+                // Don't release camera here, let the user decide to stop scanning
               });
-            }
           };
 
+          videoRef.current.onerror = (e: Event) => {
+            console.error("Video element error event fired:", e);
+            const errorMessage = e instanceof Error ? e.message : "Unknown video error";
+            setErrorMessage("Video initialization failed: " + errorMessage);
+            setIsInitializing(false);
+            // Don't release camera here, let the user decide to stop scanning
+          };
+
+          // Add playing event handler
           videoRef.current.onplaying = () => {
-            console.log("Video is now playing");
-            setCameraInitialized(true);
-            setScanning(true);
-            setHasCamera(true);
-            setIsInitializing(false);
+            console.log("Video playing event fired");
+          };
 
-            // Start capturing frames at regular intervals for decoding
-            if (decodeIntervalRef.current) {
-              window.clearInterval(decodeIntervalRef.current);
+          // Add waiting event handler
+          videoRef.current.onwaiting = () => {
+            console.log("Video waiting event fired");
+          };
+
+          // Add stalled event handler
+          videoRef.current.onstalled = () => {
+            console.log("Video stalled event fired");
+          };
+
+        } catch (cameraError) {
+          console.error("Error accessing camera with constraints:", cameraError);
+
+          // Fallback to basic constraints
+          try {
+            console.log("Trying fallback camera access method...");
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false
+            });
+            console.log("Fallback camera stream obtained successfully");
+            streamRef.current = stream;
+
+            if (!videoRef.current) {
+              throw new Error("Video element reference is not available in fallback");
             }
 
-            // Use a slower interval to give the camera time to focus
-            // QR codes need more time to focus and capture clearly
-            const interval = scanMode === 'qr' ? 500 : 300;
-            console.log(`Setting scan interval to ${interval}ms for ${scanMode} mode`);
-            decodeIntervalRef.current = window.setInterval(captureAndDecode, interval);
-          };
-
-          videoRef.current.onerror = (e) => {
-            console.error("Video element error:", e);
-            setErrorMessage("Video initialization failed");
-            setIsInitializing(false);
-            releaseCamera();
-          };
-        }
-      } catch (cameraError) {
-        console.error("Error accessing camera with constraints:", cameraError);
-
-        // Fallback to basic constraints
-        try {
-          console.log("Trying fallback camera access method...");
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facingMode },
-            audio: false
-          });
-          streamRef.current = stream;
-
-          if (videoRef.current) {
+            // Set up video element for fallback
+            console.log("Setting up video element (fallback)...");
             videoRef.current.srcObject = stream;
+            videoRef.current.setAttribute('playsinline', 'true');
+            videoRef.current.setAttribute('autoplay', 'true');
+            videoRef.current.setAttribute('muted', 'true');
+
             videoRef.current.onloadedmetadata = () => {
-              if (videoRef.current) videoRef.current.play();
-            };
-
-            videoRef.current.onplaying = () => {
-              console.log("Video is now playing (fallback method)");
-              setCameraInitialized(true);
-              setScanning(true);
-              setHasCamera(true);
-              setIsInitializing(false);
-
-              if (decodeIntervalRef.current) {
-                window.clearInterval(decodeIntervalRef.current);
+              console.log("Video metadata loaded event fired (fallback)");
+              if (!videoRef.current) {
+                throw new Error("Video element reference lost during fallback metadata loading");
               }
 
-              // Use a slower interval for the fallback method too
-              decodeIntervalRef.current = window.setInterval(captureAndDecode, 500);
-            };
-          }
-        } catch (fallbackError) {
-          console.error("All camera access methods failed:", fallbackError);
-          setErrorMessage(`Camera access failed: ${(fallbackError as Error).message}`);
-          setHasCamera(false);
-          setIsInitializing(false);
+              console.log("Attempting to play video (fallback)...");
+              videoRef.current.play()
+                .then(() => {
+                  console.log("Video playback started successfully (fallback)");
+                  setCameraInitialized(true);
+                  setScanning(true);
+                  setHasCamera(true);
+                  setIsInitializing(false);
 
-          toast({
-            title: "Camera Error",
-            description: "Could not access camera. Please check permissions and try again.",
-            variant: "destructive",
-          });
+                  if (decodeIntervalRef.current) {
+                    window.clearInterval(decodeIntervalRef.current);
+                  }
+
+                  decodeIntervalRef.current = window.setInterval(captureAndDecode, 300);
+                })
+                .catch(e => {
+                  console.error("Error playing video (fallback):", e);
+                  setErrorMessage("Error starting video playback (fallback): " + e.message);
+                  setIsInitializing(false);
+                  // Don't release camera here, let the user decide to stop scanning
+                });
+            };
+          } catch (fallbackError) {
+            console.error("All camera access methods failed:", fallbackError);
+            setErrorMessage(`Camera access failed: ${(fallbackError as Error).message}`);
+            setHasCamera(false);
+            setIsInitializing(false);
+
+            toast({
+              title: "Camera Error",
+              description: "Could not access camera. Please check permissions and try again.",
+              variant: "destructive",
+            });
+          }
         }
+      } else {
+        // For QR code scanning, we'll use react-qr-scanner
+        // Just set the scanning state to true
+        setCameraInitialized(true);
+        setScanning(true);
+        setHasCamera(true);
+        setIsInitializing(false);
       }
 
       // Set timeout to handle case where video never fires onplaying
@@ -326,7 +441,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           console.log("Camera initialization timed out");
           setErrorMessage("Camera initialization timed out. Please try again.");
           setIsInitializing(false);
-          releaseCamera();
+          // Don't release camera here, let the user decide to stop scanning
         }
       }, 10000);
 
@@ -344,9 +459,9 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     }
   };
 
-  const stopScanning = () => {
+  const stopScanning = async () => {
     console.log("Stopping scanner...");
-    releaseCamera();
+    await releaseCamera();
   };
 
   const handleBarcodeDetected = async (result: any) => {
@@ -360,7 +475,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
         if (dnaSequence && validateDNASequence(dnaSequence)) {
           captureFrame(barcodeData);
-          stopScanning();
+          await stopScanning();
 
           toast({
             title: scanMode === 'qr' ? "QR Code Detected" : "Barcode Detected",
@@ -391,6 +506,30 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         description: `The scanned ${scanMode === 'qr' ? 'QR code' : 'barcode'} is not in a recognized format.`,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleQrScan = (data: any) => {
+    if (data) {
+      console.log("QR code detected:", data);
+      // Extract the text content from the result
+      const qrText = typeof data === 'string' ? data : data.text || data.data;
+
+      if (qrText) {
+        // Create a mock result object with getText method to match the expected format
+        const mockResult = {
+          getText: () => qrText
+        };
+        handleBarcodeDetected(mockResult);
+      }
+    }
+  };
+
+  const handleQrError = (err: any) => {
+    console.error("QR scan error:", err);
+    // Only show error if it's not a common "not found" error
+    if (err && err.name !== "NotFoundError") {
+      setErrorMessage(`QR scan error: ${err.message || "Unknown error"}`);
     }
   };
 
@@ -426,7 +565,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   };
 
   // Function to switch between front and rear cameras
-  const switchCamera = () => {
+  const switchCamera = async () => {
     console.log(`Switching camera from ${facingMode} to ${facingMode === 'user' ? 'environment' : 'user'}`);
 
     // Toggle facing mode
@@ -436,7 +575,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     // If already scanning, restart with new camera
     if (scanning) {
       console.log("Restarting scanner with new camera");
-      stopScanning();
+      await stopScanning();
 
       // Small delay to ensure resources are released
       setTimeout(() => {
@@ -446,12 +585,26 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     // Initial camera support check
-    checkDeviceSupport();
+    const initializeCamera = async () => {
+      if (!mounted) return;
+
+      // Only check device support if we're not already scanning
+      if (!scanning && !cameraInitialized) {
+        await checkDeviceSupport();
+      }
+    };
+
+    initializeCamera();
 
     return () => {
+      mounted = false;
       // Cleanup when component unmounts
-      releaseCamera();
+      if (scanning || cameraInitialized) {
+        releaseCamera();
+      }
 
       // Clean up the barcode reader
       if (readerRef.current) {
@@ -463,7 +616,22 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         readerRef.current = null;
       }
     };
-  }, [checkDeviceSupport, releaseCamera, isMobile]);
+  }, [checkDeviceSupport, scanning, cameraInitialized]);
+
+  // Add effect to handle scan mode changes
+  useEffect(() => {
+    if (scanning) {
+      // If we're already scanning, restart with new mode
+      const restartScanning = async () => {
+        await stopScanning();
+        // Small delay to ensure resources are released
+        setTimeout(() => {
+          startScanning();
+        }, 500);
+      };
+      restartScanning();
+    }
+  }, [scanMode]);
 
   return (
     <Card className="w-full">
@@ -482,15 +650,40 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         </Tabs>
 
         <div className="relative bg-black rounded-md overflow-hidden aspect-video flex items-center justify-center">
-          {/* Video element for camera preview */}
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-            style={{ display: scanning && cameraInitialized ? 'block' : 'none' }}
-          />
+          {/* QR Scanner component */}
+          {scanMode === 'qr' && scanning && (
+            <div className="w-full h-full">
+              <QrScanner
+                delay={300}
+                onError={handleQrError}
+                onScan={handleQrScan}
+                style={{ width: '100%', height: '100%' }}
+                constraints={{
+                  video: {
+                    facingMode: facingMode,
+                    width: { min: 640, ideal: 1280, max: 1920 },
+                    height: { min: 480, ideal: 720, max: 1080 }
+                  }
+                }}
+                videoStyle={{ width: '100%', height: '100%' }}
+                videoId="qr-video"
+                scanDelay={300}
+                facingMode={facingMode}
+              />
+            </div>
+          )}
+
+          {/* Video element for barcode scanning */}
+          {scanMode === 'barcode' && (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+              style={{ display: scanning && cameraInitialized ? 'block' : 'none' }}
+            />
+          )}
 
           {/* Canvas for displaying captured frame */}
           <canvas

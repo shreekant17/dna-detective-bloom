@@ -209,3 +209,19 @@ export const checkBrowserCompatibility = (): { isCompatible: boolean; issues: st
     issues
   };
 };
+
+const handleQrScan = (data: any) => {
+  if (data) {
+    console.log("QR code detected:", data);
+    // Extract the text content from the result
+    const qrText = typeof data === 'string' ? data : data.text || data.data;
+
+    if (qrText) {
+      // Create a mock result object with getText method to match the expected format
+      const mockResult = {
+        getText: () => qrText
+      };
+      handleBarcodeDetected(mockResult);
+    }
+  }
+};
