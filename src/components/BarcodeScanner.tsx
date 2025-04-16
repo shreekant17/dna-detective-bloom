@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Scan, Check, AlertCircle, Camera, CameraOff, RefreshCw } from 'lucide-react';
+import { Scan, Check, AlertCircle, Camera, CameraOff, RefreshCw, QrCode, Barcode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
@@ -13,6 +13,7 @@ import {
   checkBrowserCompatibility
 } from '@/utils/barcodeUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface BarcodeScannerProps {
   onSequenceFound: (sequence: string) => void;
@@ -33,6 +34,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   const decodeIntervalRef = useRef<number | null>(null);
   const [cameraPermissionState, setCameraPermissionState] = useState<PermissionState | null>(null);
   const initScannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scanMode, setScanMode] = useState<'qr' | 'barcode'>('qr');
 
   // Function to release camera resources
   const releaseCamera = useCallback(() => {
@@ -200,12 +202,12 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       // Create barcode reader if doesn't exist
       if (!readerRef.current) {
         console.log("Creating barcode reader");
-        readerRef.current = createBarcodeReader();
+        readerRef.current = createBarcodeReader(scanMode);
       }
 
       try {
         // Get optimal constraints based on device type
-        const constraints = await getOptimalCameraConstraints(isMobile);
+        const constraints = await getOptimalCameraConstraints(isMobile, scanMode);
         console.log("Using camera constraints:", JSON.stringify(constraints));
 
         // Attempt to get camera stream
@@ -420,6 +422,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   return (
     <Card className="w-full">
       <CardContent className="p-4 space-y-4">
+        <Tabs value={scanMode} onValueChange={(value) => setScanMode(value as 'qr' | 'barcode')} className="w-full">
+          <TabsList className="grid grid-cols-2 mb-4">
+            <TabsTrigger value="qr" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              QR Code
+            </TabsTrigger>
+            <TabsTrigger value="barcode" className="flex items-center gap-2">
+              <Barcode className="h-4 w-4" />
+              Barcode
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <div className="relative bg-black rounded-md overflow-hidden aspect-video flex items-center justify-center">
           {/* Video element for camera preview */}
           <video
@@ -458,12 +473,21 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           {/* Show scanning UI */}
           {scanning && cameraInitialized && (
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/4 h-1/4 border-2 border-green-500 rounded opacity-70"></div>
-              <div className="absolute top-0 left-0 w-full h-full border-t-2 border-green-500 animate-scan"></div>
+              {scanMode === 'qr' ? (
+                <>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-green-500 rounded opacity-70"></div>
+                  <div className="absolute top-0 left-0 w-full h-full border-t-2 border-green-500 animate-scan"></div>
+                </>
+              ) : (
+                <>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/4 h-1/4 border-2 border-green-500 rounded opacity-70"></div>
+                  <div className="absolute top-0 left-0 w-full h-full border-t-2 border-green-500 animate-scan"></div>
+                </>
+              )}
             </div>
           )}
 
-          {/* Show "no camera" placeholder when not scanning */}
+          {/* Camera inactive state */}
           {!scanning && !isInitializing && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="flex flex-col items-center text-white">
@@ -476,7 +500,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
         {scanResult && (
           <div className="p-2 bg-green-50 border border-green-200 rounded text-sm">
-            <p className="font-medium text-green-700">Detected barcode:</p>
+            <p className="font-medium text-green-700">Detected {scanMode === 'qr' ? 'QR code' : 'barcode'}:</p>
             <p className="font-mono">{scanResult}</p>
           </div>
         )}
@@ -492,7 +516,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 p-3 rounded text-sm">
             <p className="font-semibold">Camera access is blocked</p>
             <p className="mt-1">
-              To use the barcode scanner, you need to allow camera access in your browser settings.
+              To use the scanner, you need to allow camera access in your browser settings.
               {isMobile ? " Look for camera permissions in your browser settings." : " Click the camera icon in your browser's address bar."}
             </p>
           </div>
@@ -519,8 +543,17 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
                 </span>
               ) : (
                 <>
-                  <Scan className="h-4 w-4 mr-2" />
-                  Scan Barcode
+                  {scanMode === 'qr' ? (
+                    <>
+                      <QrCode className="h-4 w-4 mr-2" />
+                      Scan QR Code
+                    </>
+                  ) : (
+                    <>
+                      <Barcode className="h-4 w-4 mr-2" />
+                      Scan Barcode
+                    </>
+                  )}
                 </>
               )}
             </Button>

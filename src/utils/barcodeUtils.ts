@@ -44,27 +44,38 @@ export const isValidBarcode = (code: string): boolean => {
 };
 
 // Create a barcode reader instance with optimizations for mobile
-export const createBarcodeReader = (): BrowserMultiFormatReader => {
+export const createBarcodeReader = (scanMode: 'qr' | 'barcode' = 'qr'): BrowserMultiFormatReader => {
   const hints = new Map();
 
-  // Set formats to scan for - common barcode formats
-  hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-    BarcodeFormat.QR_CODE,
-    BarcodeFormat.DATA_MATRIX,
-    BarcodeFormat.CODE_128,
-    BarcodeFormat.CODE_39,
-    BarcodeFormat.EAN_13,
-    BarcodeFormat.EAN_8,
-    BarcodeFormat.UPC_A,
-    BarcodeFormat.UPC_E,
-    BarcodeFormat.ITF,
-    BarcodeFormat.AZTEC,
-    BarcodeFormat.PDF_417
-  ]);
+  // Set formats to scan for based on scan mode
+  if (scanMode === 'qr') {
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.QR_CODE,
+      BarcodeFormat.DATA_MATRIX,
+      BarcodeFormat.AZTEC
+    ]);
+  } else {
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.ITF,
+      BarcodeFormat.PDF_417
+    ]);
+  }
 
-  // Additional hints to improve mobile performance
+  // Additional hints to improve scanning performance
   hints.set(DecodeHintType.TRY_HARDER, true);
   hints.set(DecodeHintType.ASSUME_GS1, false);
+
+  // For QR codes, add specific hints
+  if (scanMode === 'qr') {
+    hints.set(DecodeHintType.CHARACTER_SET, 'UTF-8');
+    hints.set(DecodeHintType.PURE_BARCODE, false);
+  }
 
   return new BrowserMultiFormatReader(hints);
 };
@@ -75,7 +86,7 @@ export const processBarcodeResult = (result: Result): string => {
 };
 
 // Function to handle camera selection for mobile devices
-export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<MediaStreamConstraints> => {
+export const getOptimalCameraConstraints = async (isMobile: boolean, scanMode: 'qr' | 'barcode' = 'qr'): Promise<MediaStreamConstraints> => {
   try {
     // First try to enumerate available devices to find rear camera on mobile
     const devices = await navigator.mediaDevices.enumerateDevices();
@@ -85,7 +96,6 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
 
     if (isMobile && videoDevices.length > 0) {
       // Look for keywords in device labels that might indicate rear camera
-      // Many mobile devices name their rear cameras with these terms
       const rearCameraKeywords = ['back', 'rear', 'environment', '0', 'main'];
 
       // Log all available video devices to help with debugging
@@ -104,8 +114,8 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
         return {
           video: {
             deviceId: { exact: rearCamera.deviceId },
-            width: { min: 640, ideal: 1280, max: 1920 },
-            height: { min: 480, ideal: 720, max: 1080 },
+            width: { min: 640, ideal: scanMode === 'qr' ? 1280 : 1920, max: 1920 },
+            height: { min: 480, ideal: scanMode === 'qr' ? 720 : 1080, max: 1080 },
             facingMode: "environment"
           },
           audio: false
@@ -117,8 +127,8 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
       return {
         video: {
           facingMode: { ideal: "environment" },
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 }
+          width: { min: 640, ideal: scanMode === 'qr' ? 1280 : 1920, max: 1920 },
+          height: { min: 480, ideal: scanMode === 'qr' ? 720 : 1080, max: 1080 }
         },
         audio: false
       };
@@ -128,8 +138,8 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
     console.log(`Using ${isMobile ? 'mobile' : 'desktop'} default camera settings`);
     return {
       video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: scanMode === 'qr' ? 1280 : 1920 },
+        height: { ideal: scanMode === 'qr' ? 720 : 1080 },
         facingMode: isMobile ? "environment" : "user"
       },
       audio: false
