@@ -14,7 +14,7 @@ const InfoSection: React.FC = () => {
             Leveraging DNA barcoding technology to authenticate plant species with precision and reliability
           </p>
         </div>
-        
+
         <Tabs defaultValue="overview" className="max-w-4xl mx-auto">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-8">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -22,7 +22,7 @@ const InfoSection: React.FC = () => {
             <TabsTrigger value="applications">Applications</TabsTrigger>
             <TabsTrigger value="process">Process</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="overview">
             <Card>
               <CardHeader>
@@ -36,24 +36,24 @@ const InfoSection: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p>
-                  DNA barcoding is a taxonomic method that uses a short genetic marker in an organism's DNA to identify 
-                  it as belonging to a particular species. Just as a supermarket scanner uses the black stripes of the 
+                  DNA barcoding is a taxonomic method that uses a short genetic marker in an organism's DNA to identify
+                  it as belonging to a particular species. Just as a supermarket scanner uses the black stripes of the
                   Universal Product Code to identify items in your shopping cart, a DNA barcode is used to identify species.
                 </p>
                 <p>
-                  For plants, several DNA regions have been proposed as potential barcodes, including portions of 
-                  <span className="font-semibold"> rbcL</span>, <span className="font-semibold">matK</span>, and 
-                  <span className="font-semibold"> ITS</span> (Internal Transcribed Spacer). These regions provide a reliable 
+                  For plants, several DNA regions have been proposed as potential barcodes, including portions of
+                  <span className="font-semibold"> rbcL</span>, <span className="font-semibold">matK</span>, and
+                  <span className="font-semibold"> ITS</span> (Internal Transcribed Spacer). These regions provide a reliable
                   and accurate method to distinguish between closely related plant species.
                 </p>
                 <p>
-                  DNA Detective uses these barcode regions to authenticate plant materials, helping researchers, 
+                  DNA Detective uses these barcode regions to authenticate plant materials, helping researchers,
                   companies, and consumers ensure the authenticity of botanical products.
                 </p>
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="technology">
             <Card>
               <CardHeader>
@@ -86,16 +86,17 @@ const InfoSection: React.FC = () => {
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <h4 className="font-medium text-dna-teal">Machine Learning</h4>
+                    <h4 className="font-medium text-dna-teal">Expert Validation</h4>
                     <p className="text-sm text-gray-600">
-                      Advanced ML algorithms enhance our detection capabilities, allowing for more accurate species authentication.
+                      Our team of specialists reviews sequence matches to ensure high-confidence species identification through manual verification.
                     </p>
                   </div>
                 </div>
               </CardContent>
+
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="applications">
             <Card>
               <CardHeader>
@@ -131,7 +132,7 @@ const InfoSection: React.FC = () => {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="process">
             <Card>
               <CardHeader>
@@ -156,7 +157,7 @@ const InfoSection: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start">
                     <div className="flex-shrink-0 bg-dna-teal text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
                       2
@@ -168,7 +169,7 @@ const InfoSection: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start">
                     <div className="flex-shrink-0 bg-dna-teal text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
                       3
@@ -180,7 +181,7 @@ const InfoSection: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start">
                     <div className="flex-shrink-0 bg-dna-teal text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
                       4
@@ -192,7 +193,7 @@ const InfoSection: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start">
                     <div className="flex-shrink-0 bg-dna-teal text-white rounded-full w-8 h-8 flex items-center justify-center mr-3">
                       5
