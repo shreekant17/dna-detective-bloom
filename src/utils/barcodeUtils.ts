@@ -52,16 +52,19 @@ export const isValidBarcode = (code: string, scanMode: 'qr' | 'barcode' = 'barco
 
 // Create a barcode reader instance with optimizations for mobile
 export const createBarcodeReader = (scanMode: 'qr' | 'barcode' = 'qr'): BrowserMultiFormatReader => {
+  console.log(`Creating barcode reader for mode: ${scanMode}`);
   const hints = new Map();
 
   // Set formats to scan for based on scan mode
   if (scanMode === 'qr') {
+    console.log("Configuring for QR code scanning");
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [
       BarcodeFormat.QR_CODE,
       BarcodeFormat.DATA_MATRIX,
       BarcodeFormat.AZTEC
     ]);
   } else {
+    console.log("Configuring for traditional barcode scanning");
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [
       BarcodeFormat.CODE_128,
       BarcodeFormat.CODE_39,
@@ -82,9 +85,14 @@ export const createBarcodeReader = (scanMode: 'qr' | 'barcode' = 'qr'): BrowserM
   if (scanMode === 'qr') {
     hints.set(DecodeHintType.CHARACTER_SET, 'UTF-8');
     hints.set(DecodeHintType.PURE_BARCODE, false);
+    // Add more aggressive scanning for QR codes
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
   }
 
-  return new BrowserMultiFormatReader(hints);
+  const reader = new BrowserMultiFormatReader(hints);
+  console.log("Barcode reader created with hints:", hints);
+  return reader;
 };
 
 // Process a successful scan result

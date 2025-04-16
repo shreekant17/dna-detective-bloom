@@ -138,6 +138,12 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   // Manual frame capture and processing for better performance
   const captureAndDecode = useCallback(() => {
     if (!videoRef.current || !readerRef.current || !canvasRef.current || !streamRef.current) {
+      console.log("Missing required refs for scanning:", {
+        video: !!videoRef.current,
+        reader: !!readerRef.current,
+        canvas: !!canvasRef.current,
+        stream: !!streamRef.current
+      });
       return;
     }
 
@@ -146,7 +152,15 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
 
-      if (!context || video.readyState !== 4) return;
+      if (!context) {
+        console.error("Could not get canvas context");
+        return;
+      }
+
+      if (video.readyState !== 4) {
+        console.log(`Video not ready, state: ${video.readyState}`);
+        return;
+      }
 
       // Match canvas size to video
       const videoWidth = video.videoWidth;
@@ -155,6 +169,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       if (canvas.width !== videoWidth || canvas.height !== videoHeight) {
         canvas.width = videoWidth;
         canvas.height = videoHeight;
+        console.log(`Canvas resized to ${videoWidth}x${videoHeight}`);
       }
 
       // Draw the current frame to canvas
@@ -162,6 +177,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
       // Get the image data from the canvas for processing
       const imageData = context.getImageData(0, 0, videoWidth, videoHeight);
+      console.log(`Processing frame: ${videoWidth}x${videoHeight}, scan mode: ${scanMode}`);
 
       // Use ZXing to decode the image
       try {
@@ -179,7 +195,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     } catch (error) {
       console.error("Error in capture and decode cycle:", error);
     }
-  }, []);
+  }, [scanMode]);
 
   const startScanning = async () => {
     setErrorMessage(null);
@@ -199,11 +215,9 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       // Ensure any previous resources are released
       releaseCamera();
 
-      // Create barcode reader if doesn't exist
-      if (!readerRef.current) {
-        console.log("Creating barcode reader");
-        readerRef.current = createBarcodeReader(scanMode);
-      }
+      // Always create a new barcode reader to ensure it's configured for the current mode
+      console.log("Creating barcode reader for mode:", scanMode);
+      readerRef.current = createBarcodeReader(scanMode);
 
       try {
         // Get optimal constraints based on device type
@@ -241,7 +255,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               window.clearInterval(decodeIntervalRef.current);
             }
 
-            decodeIntervalRef.current = window.setInterval(captureAndDecode, 200);
+            // Use a faster interval for QR codes
+            const interval = scanMode === 'qr' ? 100 : 200;
+            console.log(`Setting scan interval to ${interval}ms for ${scanMode} mode`);
+            decodeIntervalRef.current = window.setInterval(captureAndDecode, interval);
           };
 
           videoRef.current.onerror = (e) => {
