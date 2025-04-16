@@ -149,41 +149,29 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
     try {
       const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
 
-      if (!context) {
-        console.error("Could not get canvas context");
-        return;
-      }
-
+      // Check if video is ready
       if (video.readyState !== 4) {
         console.log(`Video not ready, state: ${video.readyState}`);
         return;
       }
 
-      // Match canvas size to video
-      const videoWidth = video.videoWidth;
-      const videoHeight = video.videoHeight;
-
-      if (canvas.width !== videoWidth || canvas.height !== videoHeight) {
-        canvas.width = videoWidth;
-        canvas.height = videoHeight;
-        console.log(`Canvas resized to ${videoWidth}x${videoHeight}`);
+      // Check if video dimensions are valid
+      if (video.videoWidth <= 0 || video.videoHeight <= 0) {
+        console.log(`Invalid video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+        return;
       }
 
-      // Draw the current frame to canvas
-      context.drawImage(video, 0, 0, videoWidth, videoHeight);
+      console.log(`Processing frame: ${video.videoWidth}x${video.videoHeight}, scan mode: ${scanMode}`);
 
-      // Get the image data from the canvas for processing
-      const imageData = context.getImageData(0, 0, videoWidth, videoHeight);
-      console.log(`Processing frame: ${videoWidth}x${videoHeight}, scan mode: ${scanMode}`);
-
-      // Use ZXing to decode the image
+      // Use the reader's decode method directly on the video element
       try {
-        const result = readerRef.current.decodeFromImageData(imageData);
-        if (result && result.getText()) {
-          console.log("Barcode detected:", result.getText());
+        console.log("Using direct decode method on video element");
+        const result = readerRef.current.decode(video);
+
+        if (result && typeof result.getText === 'function') {
+          const text = result.getText();
+          console.log("Barcode detected:", text);
           handleBarcodeDetected(result);
         }
       } catch (error) {
