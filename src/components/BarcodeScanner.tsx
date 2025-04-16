@@ -36,6 +36,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   const initScannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [scanMode, setScanMode] = useState<'qr' | 'barcode'>('qr');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
 
   // Function to release camera resources
   const releaseCamera = useCallback(() => {
@@ -113,6 +114,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
       console.log(`Found ${videoDevices.length} video input devices`);
+      setAvailableCameras(videoDevices);
 
       if (videoDevices.length === 0) {
         setHasCamera(false);
@@ -163,11 +165,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         return;
       }
 
-      console.log(`Processing frame: ${video.videoWidth}x${video.videoHeight}, scan mode: ${scanMode}`);
+      // Only log dimensions occasionally to reduce console noise
+      if (Math.random() < 0.05) { // Log roughly 5% of the time
+        console.log(`Processing frame: ${video.videoWidth}x${video.videoHeight}, scan mode: ${scanMode}`);
+      }
 
       // Use the reader's decode method directly on the video element
       try {
-        console.log("Using direct decode method on video element");
         const result = readerRef.current.decode(video);
 
         if (result && typeof result.getText === 'function') {
@@ -178,7 +182,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       } catch (error) {
         // Most errors will be "not found" which is expected
         if ((error as Error).name !== 'NotFoundException') {
-          console.error("Decoding error:", error);
+          // Only log non-NotFoundException errors occasionally to reduce console noise
+          if (Math.random() < 0.1) { // Log roughly 10% of the time
+            console.error("Decoding error:", error);
+          }
         }
       }
     } catch (error) {
@@ -252,8 +259,9 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               window.clearInterval(decodeIntervalRef.current);
             }
 
-            // Use a faster interval for QR codes
-            const interval = scanMode === 'qr' ? 100 : 200;
+            // Use a slower interval to give the camera time to focus
+            // QR codes need more time to focus and capture clearly
+            const interval = scanMode === 'qr' ? 500 : 300;
             console.log(`Setting scan interval to ${interval}ms for ${scanMode} mode`);
             decodeIntervalRef.current = window.setInterval(captureAndDecode, interval);
           };
@@ -294,7 +302,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
                 window.clearInterval(decodeIntervalRef.current);
               }
 
-              decodeIntervalRef.current = window.setInterval(captureAndDecode, 200);
+              // Use a slower interval for the fallback method too
+              decodeIntervalRef.current = window.setInterval(captureAndDecode, 500);
             };
           }
         } catch (fallbackError) {
