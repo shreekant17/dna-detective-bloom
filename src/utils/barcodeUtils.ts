@@ -1,33 +1,38 @@
-
 /**
  * Utility functions for working with DNA barcodes
  */
 import { BrowserMultiFormatReader, Result, BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { getSampleSequences } from './api';
 
 // Extract DNA sequence from barcode data
-export const extractDNAFromBarcode = (barcodeData: string): string | null => {
+export const extractDNAFromBarcode = async (barcodeData: string): Promise<string | null> => {
   // Basic check to see if the barcode data might contain DNA
   if (/^[ATGC]+$/.test(barcodeData)) {
     console.log("Barcode is already a DNA sequence");
     return barcodeData; // Already a DNA sequence
   }
-  
+
   // Log the barcode we're looking up
   console.log("Looking up DNA sequence for barcode:", barcodeData);
-  
-  // For a real system, you'd have a database or API to look up the DNA sequence
-  // associated with this barcode. This is a simplified example.
-  const knownBarcodes: Record<string, string> = {
-    "GINSENG123": "CGTAACAAGGTTTCCGTAGGTGAACCTGCGGAAGGATCATTGTCGAAACCTGCATAGCAGAA",
-    "BASIL456": "ATGTCACCACAAACAGAGACTAAAGCAAGTGTTGGATTCAAAGCTGGTGTTAAA",
-    "TURMERIC789": "ACCCAGTCCATCTGGAAATCTTGGTTCAGGACTCCCTTCTATATAATTCTCATG",
-    // More could be added here
-  };
-  
-  const dnaSequence = knownBarcodes[barcodeData] || null;
-  console.log("DNA sequence found:", dnaSequence ? "Yes" : "No");
-  
-  return dnaSequence;
+
+  try {
+    // Get samples from the API
+    const samples = await getSampleSequences();
+
+    // Check if the barcode matches any known samples
+    for (const [commonName, sequence] of Object.entries(samples)) {
+      if (commonName.includes(barcodeData) || barcodeData.includes(commonName)) {
+        console.log(`Found matching DNA sequence for ${commonName}`);
+        return sequence;
+      }
+    }
+
+    console.log("No DNA sequence found for barcode");
+    return null;
+  } catch (error) {
+    console.error("Error fetching DNA sequences:", error);
+    return null;
+  }
 };
 
 // Function to validate if a string could be a barcode
@@ -41,7 +46,7 @@ export const isValidBarcode = (code: string): boolean => {
 // Create a barcode reader instance with optimizations for mobile
 export const createBarcodeReader = (): BrowserMultiFormatReader => {
   const hints = new Map();
-  
+
   // Set formats to scan for - common barcode formats
   hints.set(DecodeHintType.POSSIBLE_FORMATS, [
     BarcodeFormat.QR_CODE,
@@ -56,11 +61,11 @@ export const createBarcodeReader = (): BrowserMultiFormatReader => {
     BarcodeFormat.AZTEC,
     BarcodeFormat.PDF_417
   ]);
-  
+
   // Additional hints to improve mobile performance
   hints.set(DecodeHintType.TRY_HARDER, true);
   hints.set(DecodeHintType.ASSUME_GS1, false);
-  
+
   return new BrowserMultiFormatReader(hints);
 };
 
@@ -75,25 +80,25 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
     // First try to enumerate available devices to find rear camera on mobile
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    
+
     console.log(`Found ${videoDevices.length} video input devices`);
-    
+
     if (isMobile && videoDevices.length > 0) {
       // Look for keywords in device labels that might indicate rear camera
       // Many mobile devices name their rear cameras with these terms
       const rearCameraKeywords = ['back', 'rear', 'environment', '0', 'main'];
-      
+
       // Log all available video devices to help with debugging
       videoDevices.forEach((device, index) => {
         console.log(`Camera ${index}: ${device.label || 'unnamed'} (${device.deviceId.substring(0, 8)}...)`);
       });
-      
+
       // Try to find rear camera by looking for common keywords in labels
       const rearCamera = videoDevices.find(device => {
         const label = device.label.toLowerCase();
         return rearCameraKeywords.some(keyword => label.includes(keyword));
       });
-      
+
       if (rearCamera) {
         console.log(`Selected rear camera: ${rearCamera.label}`);
         return {
@@ -106,7 +111,7 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
           audio: false
         };
       }
-      
+
       // If we couldn't identify a rear camera by label, use facingMode constraint
       console.log("Using facingMode: environment as fallback");
       return {
@@ -117,8 +122,8 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
         },
         audio: false
       };
-    } 
-    
+    }
+
     // For desktop or if mobile detection failed
     console.log(`Using ${isMobile ? 'mobile' : 'desktop'} default camera settings`);
     return {
@@ -142,27 +147,27 @@ export const getOptimalCameraConstraints = async (isMobile: boolean): Promise<Me
 // Check if the current browser supports modern camera access APIs
 export const checkBrowserCompatibility = (): { isCompatible: boolean; issues: string[] } => {
   const issues: string[] = [];
-  
+
   // Check for getUserMedia support
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     issues.push("Camera API not supported in this browser");
   }
-  
+
   // Check for secure context (needed for camera access)
   if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
     issues.push("Camera access requires HTTPS (except on localhost)");
   }
-  
+
   // Check for specific browser issues
   const userAgent = navigator.userAgent.toLowerCase();
-  
+
   if (userAgent.indexOf('iphone') > -1 || userAgent.indexOf('ipad') > -1) {
     const iOSMatch = userAgent.match(/os (\d+)_/);
     if (iOSMatch && parseInt(iOSMatch[1]) < 13) {
       issues.push("iOS 13 or later is recommended for camera access");
     }
   }
-  
+
   return {
     isCompatible: issues.length === 0,
     issues

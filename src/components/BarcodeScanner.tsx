@@ -1,14 +1,13 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Scan, Check, AlertCircle, Camera, CameraOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import { validateDNASequence } from '@/utils/dnaUtils';
-import { 
-  extractDNAFromBarcode, 
-  isValidBarcode, 
-  createBarcodeReader, 
+import {
+  extractDNAFromBarcode,
+  isValidBarcode,
+  createBarcodeReader,
   processBarcodeResult,
   getOptimalCameraConstraints,
   checkBrowserCompatibility
@@ -38,19 +37,19 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   // Function to release camera resources
   const releaseCamera = useCallback(() => {
     console.log("Releasing camera resources...");
-    
+
     // Clear scanning interval
     if (decodeIntervalRef.current) {
       window.clearInterval(decodeIntervalRef.current);
       decodeIntervalRef.current = null;
     }
-    
+
     // Clear init timer
     if (initScannerTimerRef.current) {
       clearTimeout(initScannerTimerRef.current);
       initScannerTimerRef.current = null;
     }
-    
+
     // Stop any active stream from streamRef first
     if (streamRef.current) {
       const tracks = streamRef.current.getTracks();
@@ -60,7 +59,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       });
       streamRef.current = null;
     }
-    
+
     // Also stop any stream attached to the video element
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
@@ -70,7 +69,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       });
       videoRef.current.srcObject = null;
     }
-    
+
     setScanning(false);
     setCameraInitialized(false);
   }, []);
@@ -78,53 +77,53 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   // Check browser compatibility and camera permissions
   const checkDeviceSupport = useCallback(async () => {
     const compatibility = checkBrowserCompatibility();
-    
+
     if (!compatibility.isCompatible) {
       console.warn("Browser compatibility issues:", compatibility.issues);
       setHasCamera(false);
       setErrorMessage(`Browser issues: ${compatibility.issues.join(', ')}`);
       return false;
     }
-    
+
     try {
       // Check if the browser supports the Permissions API
       if ('permissions' in navigator) {
         const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
         console.log(`Camera permission status: ${permissionStatus.state}`);
         setCameraPermissionState(permissionStatus.state);
-        
+
         // Listen for permission changes
         permissionStatus.onchange = () => {
           console.log(`Camera permission changed to: ${permissionStatus.state}`);
           setCameraPermissionState(permissionStatus.state);
         };
-        
+
         if (permissionStatus.state === 'denied') {
           setHasCamera(false);
           setErrorMessage("Camera access denied. Please check your browser settings.");
           return false;
         }
       }
-      
+
       // Check for available cameras
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      
+
       console.log(`Found ${videoDevices.length} video input devices`);
-      
+
       if (videoDevices.length === 0) {
         setHasCamera(false);
         setErrorMessage("No camera detected on this device");
         return false;
       }
-      
+
       // On mobile, log all available devices to help debugging
       if (isMobile) {
-        console.log("Available video devices:", videoDevices.map(d => 
+        console.log("Available video devices:", videoDevices.map(d =>
           `${d.kind}: ${d.label || 'unnamed'} (${d.deviceId.substring(0, 8)}...)`
         ));
       }
-      
+
       return true;
     } catch (error) {
       console.error("Error checking camera:", error);
@@ -139,29 +138,29 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     if (!videoRef.current || !readerRef.current || !canvasRef.current || !streamRef.current) {
       return;
     }
-    
+
     try {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
-      
+
       if (!context || video.readyState !== 4) return;
-      
+
       // Match canvas size to video
       const videoWidth = video.videoWidth;
       const videoHeight = video.videoHeight;
-      
+
       if (canvas.width !== videoWidth || canvas.height !== videoHeight) {
         canvas.width = videoWidth;
         canvas.height = videoHeight;
       }
-      
+
       // Draw the current frame to canvas
       context.drawImage(video, 0, 0, videoWidth, videoHeight);
-      
+
       // Get the image data from the canvas for processing
       const imageData = context.getImageData(0, 0, videoWidth, videoHeight);
-      
+
       // Use ZXing to decode the image
       try {
         const result = readerRef.current.decodeFromImageData(imageData);
@@ -184,7 +183,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     setErrorMessage(null);
     setIsInitializing(true);
     setScanResult(null);
-    
+
     try {
       // First check if device has camera support
       const hasSupport = await checkDeviceSupport();
@@ -192,34 +191,34 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         setIsInitializing(false);
         return;
       }
-      
+
       console.log(`Starting camera on ${isMobile ? 'mobile' : 'desktop'} device...`);
-      
+
       // Ensure any previous resources are released
       releaseCamera();
-      
+
       // Create barcode reader if doesn't exist
       if (!readerRef.current) {
         console.log("Creating barcode reader");
         readerRef.current = createBarcodeReader();
       }
-      
+
       try {
         // Get optimal constraints based on device type
         const constraints = await getOptimalCameraConstraints(isMobile);
         console.log("Using camera constraints:", JSON.stringify(constraints));
-        
+
         // Attempt to get camera stream
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         streamRef.current = stream;
-        
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          
+
           // Set up event handlers for the video element
           videoRef.current.onloadedmetadata = () => {
             console.log(`Video ready: ${videoRef.current?.videoWidth || 0}×${videoRef.current?.videoHeight || 0}`);
-            
+
             if (videoRef.current) {
               videoRef.current.play().catch(e => {
                 console.error("Error playing video:", e);
@@ -227,22 +226,22 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               });
             }
           };
-          
+
           videoRef.current.onplaying = () => {
             console.log("Video is now playing");
             setCameraInitialized(true);
             setScanning(true);
             setHasCamera(true);
             setIsInitializing(false);
-            
+
             // Start capturing frames at regular intervals for decoding
             if (decodeIntervalRef.current) {
               window.clearInterval(decodeIntervalRef.current);
             }
-            
+
             decodeIntervalRef.current = window.setInterval(captureAndDecode, 200);
           };
-          
+
           videoRef.current.onerror = (e) => {
             console.error("Video element error:", e);
             setErrorMessage("Video initialization failed");
@@ -252,30 +251,30 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         }
       } catch (cameraError) {
         console.error("Error accessing camera with optimal constraints:", cameraError);
-        
+
         // Fallback to basic constraints
         try {
           console.log("Trying fallback camera access method...");
           const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
           streamRef.current = stream;
-          
+
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.onloadedmetadata = () => {
               if (videoRef.current) videoRef.current.play();
             };
-            
+
             videoRef.current.onplaying = () => {
               console.log("Video is now playing (fallback method)");
               setCameraInitialized(true);
               setScanning(true);
               setHasCamera(true);
               setIsInitializing(false);
-              
+
               if (decodeIntervalRef.current) {
                 window.clearInterval(decodeIntervalRef.current);
               }
-              
+
               decodeIntervalRef.current = window.setInterval(captureAndDecode, 200);
             };
           }
@@ -284,7 +283,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           setErrorMessage(`Camera access failed: ${(fallbackError as Error).message}`);
           setHasCamera(false);
           setIsInitializing(false);
-          
+
           toast({
             title: "Camera Error",
             description: "Could not access camera. Please check permissions and try again.",
@@ -292,7 +291,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           });
         }
       }
-      
+
       // Set timeout to handle case where video never fires onplaying
       initScannerTimerRef.current = setTimeout(() => {
         if (!cameraInitialized && isInitializing) {
@@ -302,13 +301,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           releaseCamera();
         }
       }, 10000);
-      
+
     } catch (error) {
       console.error("General camera access error:", error);
       setHasCamera(false);
       setIsInitializing(false);
       setErrorMessage(`Camera error: ${(error as Error).message || "Unknown error"}`);
-      
+
       toast({
         title: "Camera Error",
         description: "Could not access camera. Please check permissions.",
@@ -322,29 +321,38 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     releaseCamera();
   };
 
-  const handleBarcodeDetected = (result: any) => {
+  const handleBarcodeDetected = async (result: any) => {
     const barcodeData = processBarcodeResult(result);
     console.log("Processing barcode:", barcodeData);
     setScanResult(barcodeData);
-    
+
     if (isValidBarcode(barcodeData)) {
-      const dnaSequence = extractDNAFromBarcode(barcodeData);
-      
-      if (dnaSequence && validateDNASequence(dnaSequence)) {
-        captureFrame(barcodeData);
-        stopScanning();
-        
+      try {
+        const dnaSequence = await extractDNAFromBarcode(barcodeData);
+
+        if (dnaSequence && validateDNASequence(dnaSequence)) {
+          captureFrame(barcodeData);
+          stopScanning();
+
+          toast({
+            title: "Barcode Detected",
+            description: `Found barcode: ${barcodeData}`,
+          });
+
+          onSequenceFound(dnaSequence);
+        } else {
+          console.log("No valid DNA sequence found in barcode");
+          toast({
+            title: "Invalid Barcode",
+            description: "No DNA sequence associated with this barcode.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error("Error processing barcode:", error);
         toast({
-          title: "Barcode Detected",
-          description: `Found barcode: ${barcodeData}`,
-        });
-        
-        onSequenceFound(dnaSequence);
-      } else {
-        console.log("No valid DNA sequence found in barcode");
-        toast({
-          title: "Invalid Barcode",
-          description: "No DNA sequence associated with this barcode.",
+          title: "Error",
+          description: "Failed to process barcode. Please try again.",
           variant: "destructive",
         });
       }
@@ -363,24 +371,24 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     if (videoRef.current && canvasRef.current) {
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
-      
+
       if (context) {
         // Set canvas dimensions to match the video
         const videoWidth = videoRef.current.videoWidth || 640;
         const videoHeight = videoRef.current.videoHeight || 480;
-        
+
         canvas.width = videoWidth;
         canvas.height = videoHeight;
-        
+
         console.log(`Capturing frame: ${videoWidth}x${videoHeight}`);
-        
+
         // Draw the current video frame
         context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        
+
         // Draw the barcode data on the canvas for visualization
         context.fillStyle = "rgba(0, 255, 0, 0.3)";
         context.fillRect(canvas.width / 4, canvas.height / 2 - 20, canvas.width / 2, 40);
-        
+
         context.font = "16px Arial";
         context.fillStyle = "white";
         context.textAlign = "center";
@@ -392,11 +400,11 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   useEffect(() => {
     // Initial camera support check
     checkDeviceSupport();
-    
+
     return () => {
       // Cleanup when component unmounts
       releaseCamera();
-      
+
       // Clean up the barcode reader
       if (readerRef.current) {
         try {
@@ -414,22 +422,22 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       <CardContent className="p-4 space-y-4">
         <div className="relative bg-black rounded-md overflow-hidden aspect-video flex items-center justify-center">
           {/* Video element for camera preview */}
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            muted 
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
             className="w-full h-full object-cover"
             style={{ display: scanning && cameraInitialized ? 'block' : 'none' }}
           />
-          
+
           {/* Canvas for displaying captured frame */}
-          <canvas 
-            ref={canvasRef} 
+          <canvas
+            ref={canvasRef}
             className="w-full h-full object-cover"
             style={{ display: !scanning ? 'block' : 'none' }}
           />
-          
+
           {/* Loading state */}
           {isInitializing && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
@@ -439,14 +447,14 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               </div>
             </div>
           )}
-          
+
           {/* Camera not initialized yet */}
           {scanning && !cameraInitialized && !isInitializing && (
             <div className="absolute inset-0 flex items-center justify-center text-white">
               <span>Waiting for camera access...</span>
             </div>
           )}
-          
+
           {/* Show scanning UI */}
           {scanning && cameraInitialized && (
             <div className="absolute inset-0 pointer-events-none">
@@ -454,7 +462,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               <div className="absolute top-0 left-0 w-full h-full border-t-2 border-green-500 animate-scan"></div>
             </div>
           )}
-          
+
           {/* Show "no camera" placeholder when not scanning */}
           {!scanning && !isInitializing && (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -492,14 +500,14 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
         <div className="flex justify-center">
           {scanning ? (
-            <Button 
+            <Button
               onClick={stopScanning}
               variant="destructive"
             >
               Stop Scanning
             </Button>
           ) : (
-            <Button 
+            <Button
               onClick={startScanning}
               className="bg-dna-teal hover:bg-dna-blue"
               disabled={!hasCamera || isInitializing}

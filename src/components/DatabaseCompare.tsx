@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,9 +9,9 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AnalysisResult } from '@/utils/dnaUtils';
-import { DNA_DATABASE } from '@/utils/dnaUtils';
-import { calculateSimilarity } from '@/utils/dnaUtils';
+import { AnalysisResult, calculateSimilarity } from '@/utils/dnaUtils';
+import { getSampleSequences } from '@/utils/api';
+import { Loader2 } from 'lucide-react';
 
 interface DatabaseCompareProps {
   open: boolean;
@@ -29,19 +28,45 @@ interface ComparisonResult {
 }
 
 const DatabaseCompare: React.FC<DatabaseCompareProps> = ({ open, setOpen, result }) => {
-  // Calculate similarity with all database entries
-  const comparisons: ComparisonResult[] = DNA_DATABASE.map(plant => {
-    const plantBarcode = plant.barcodes[result.barcodeRegion as keyof typeof plant.barcodes];
-    const similarity = plantBarcode ? calculateSimilarity(result.sequence, plantBarcode) * 100 : 0;
-    
-    return {
-      species: plant.species,
-      commonName: plant.commonName,
-      similarity,
-      region: result.barcodeRegion,
-      authenticity: plant.authenticity * 100
+  const [comparisons, setComparisons] = useState<ComparisonResult[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAndCompare = async () => {
+      if (!open) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Fetch samples from the API
+        const samples = await getSampleSequences();
+
+        // Convert samples to comparison results
+        const comparisonResults: ComparisonResult[] = Object.entries(samples).map(([commonName, sequence]) => {
+          const similarity = calculateSimilarity(result.sequence, sequence) * 100;
+
+          return {
+            species: commonName, // Using commonName as species since that's what we get from the API
+            commonName,
+            similarity,
+            region: result.barcodeRegion,
+            authenticity: 100 // Default value since we don't get authenticity from the API
+          };
+        }).sort((a, b) => b.similarity - a.similarity);
+
+        setComparisons(comparisonResults);
+      } catch (err) {
+        console.error('Error fetching comparison data:', err);
+        setError('Failed to load comparison data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     };
-  }).sort((a, b) => b.similarity - a.similarity);
+
+    fetchAndCompare();
+  }, [open, result]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -52,38 +77,47 @@ const DatabaseCompare: React.FC<DatabaseCompareProps> = ({ open, setOpen, result
             Comparing your DNA sequence with all species in our database
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="mt-4 overflow-auto max-h-96">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-dna-blue/10">
-                <TableHead className="font-semibold">Species</TableHead>
-                <TableHead className="font-semibold">Common Name</TableHead>
-                <TableHead className="font-semibold text-right">Match (%)</TableHead>
-                <TableHead className="font-semibold text-right">Authenticity (%)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {comparisons.map((item, index) => (
-                <TableRow 
-                  key={index}
-                  className={item.species === result.matchedSpecies ? "bg-dna-green/10" : ""}
-                >
-                  <TableCell className="font-medium">
-                    {item.species}
-                    {item.species === result.matchedSpecies && (
-                      <span className="ml-2 text-dna-green text-xs">(Best Match)</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{item.commonName}</TableCell>
-                  <TableCell className="text-right">{item.similarity.toFixed(1)}</TableCell>
-                  <TableCell className="text-right">{item.authenticity.toFixed(1)}</TableCell>
+
+        {loading ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-dna-blue" />
+            <span className="ml-2">Loading comparison data...</span>
+          </div>
+        ) : error ? (
+          <div className="text-red-500 py-4 text-center">{error}</div>
+        ) : (
+          <div className="mt-4 overflow-auto max-h-96">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-dna-blue/10">
+                  <TableHead className="font-semibold">Species</TableHead>
+                  <TableHead className="font-semibold">Common Name</TableHead>
+                  <TableHead className="font-semibold text-right">Match (%)</TableHead>
+                  <TableHead className="font-semibold text-right">Authenticity (%)</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        
+              </TableHeader>
+              <TableBody>
+                {comparisons.map((item, index) => (
+                  <TableRow
+                    key={index}
+                    className={item.species === result.matchedSpecies ? "bg-dna-green/10" : ""}
+                  >
+                    <TableCell className="font-medium">
+                      {item.species}
+                      {item.species === result.matchedSpecies && (
+                        <span className="ml-2 text-dna-green text-xs">(Best Match)</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{item.commonName}</TableCell>
+                    <TableCell className="text-right">{item.similarity.toFixed(1)}</TableCell>
+                    <TableCell className="text-right">{item.authenticity.toFixed(1)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
         <DialogFooter>
           <Button onClick={() => setOpen(false)}>Close</Button>
         </DialogFooter>

@@ -2,7 +2,7 @@
 import { AnalysisResult } from './dnaUtils';
 import { toast } from '@/components/ui/use-toast';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'https://shreekantkalwar-dna-backend.hf.space/api';
 
 export const analyzeDNASequence = async (sequence: string): Promise<AnalysisResult | null> => {
   try {
@@ -31,10 +31,10 @@ export const analyzeDNASequence = async (sequence: string): Promise<AnalysisResu
   }
 };
 
-export const getSampleSequences = async (): Promise<{[key: string]: string}> => {
+export const getSampleSequences = async (): Promise<{ [key: string]: string }> => {
   try {
     const response = await fetch(`${API_BASE_URL}/samples`);
-    
+
     if (!response.ok) {
       throw new Error('Failed to fetch sample sequences');
     }

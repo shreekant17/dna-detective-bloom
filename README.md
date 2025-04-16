@@ -1,73 +1,129 @@
-# Welcome to your Lovable project
+# DNA Detective Bloom
 
-## Project info
+A web application for DNA barcode analysis and plant identification.
 
-**URL**: https://lovable.dev/projects/2375602a-c1e4-484a-af17-8a597655380e
+## Features
 
-## How can I edit this code?
+- DNA sequence analysis
+- Barcode scanning
+- Database comparison
+- Sample sequence library
 
-There are several ways of editing your application.
+## Prerequisites
 
-**Use Lovable**
+- Node.js (v16 or higher)
+- Python (v3.8 or higher)
+- MongoDB (v4.4 or higher)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2375602a-c1e4-484a-af17-8a597655380e) and start prompting.
+## Setup Instructions
 
-Changes made via Lovable will be committed automatically to this repo.
+### 1. Install MongoDB
 
-**Use your preferred IDE**
+#### Windows
+1. Download MongoDB Community Server from [MongoDB Download Center](https://www.mongodb.com/try/download/community)
+2. Run the installer and follow the instructions
+3. MongoDB will be installed as a service and will start automatically
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+#### macOS
+```bash
+brew tap mongodb/brew
+brew install mongodb-community
+brew services start mongodb-community
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+#### Linux (Ubuntu)
+```bash
+sudo apt update
+sudo apt install -y mongodb
+sudo systemctl start mongodb
+sudo systemctl enable mongodb
+```
 
-Follow these steps:
+### 2. Set up the Backend
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. Navigate to the server directory:
+```bash
+cd dna-detective-bloom/server
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Create a virtual environment:
+```bash
+python -m venv venv
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Activate the virtual environment:
+   - Windows: `venv\Scripts\activate`
+   - macOS/Linux: `source venv/bin/activate`
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+5. Set up environment variables:
+   - Create a `.env` file in the server directory with the following content:
+   ```
+   MONGODB_URI=mongodb://localhost:27017
+   ```
+   - You can modify the MongoDB URI if you're using a different MongoDB setup
+
+6. Initialize the database with sample data:
+```bash
+python init_db.py
+```
+
+7. Start the backend server:
+   - Windows: Run `run_server.bat`
+   - macOS/Linux: Run `./run_server.sh` (make sure to make it executable with `chmod +x run_server.sh`)
+   - Or manually: `uvicorn app:app --reload`
+
+### 3. Set up the Frontend
+
+1. Navigate to the project directory:
+```bash
+cd dna-detective-bloom
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Start the development server:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+4. Open your browser and navigate to `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Usage
 
-**Use GitHub Codespaces**
+1. **DNA Sequence Analysis**: Enter a DNA sequence or upload a file containing a sequence
+2. **Barcode Scanning**: Use your camera to scan a DNA barcode
+3. **Database Comparison**: Compare your sequence with the database
+4. **Sample Library**: Browse and use sample sequences
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Troubleshooting
 
-## What technologies are used for this project?
+### MongoDB Connection Issues
 
-This project is built with:
+If you encounter MongoDB connection issues:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+1. Make sure MongoDB is running:
+   - Windows: Check Services app for "MongoDB"
+   - macOS/Linux: `brew services list` or `sudo systemctl status mongodb`
 
-## How can I deploy this project?
+2. Verify the connection string in `server/.env`:
+   ```
+   MONGODB_URI=mongodb://localhost:27017
+   ```
 
-Simply open [Lovable](https://lovable.dev/projects/2375602a-c1e4-484a-af17-8a597655380e) and click on Share -> Publish.
+3. Run the MongoDB connection check:
+   ```bash
+   cd server
+   python check_mongodb.py
+   ```
 
-## Can I connect a custom domain to my Lovable project?
+## License
 
-Yes it is!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+MIT
