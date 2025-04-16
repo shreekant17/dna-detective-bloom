@@ -199,7 +199,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         return;
       }
 
-      console.log(`Starting camera on ${isMobile ? 'mobile' : 'desktop'} device...`);
+      console.log(`Starting camera on ${isMobile ? 'mobile' : 'desktop'} device with facing mode: ${facingMode}`);
 
       // Ensure any previous resources are released
       releaseCamera();
@@ -209,17 +209,17 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       readerRef.current = createBarcodeReader(scanMode);
 
       try {
-        // Get optimal constraints based on device type
-        const constraints = await getOptimalCameraConstraints(isMobile, scanMode);
-        console.log("Using camera constraints:", JSON.stringify(constraints));
+        // Create constraints with explicit facing mode
+        const constraints = {
+          video: {
+            facingMode: facingMode,
+            width: { ideal: scanMode === 'qr' ? 1280 : 1920 },
+            height: { ideal: scanMode === 'qr' ? 720 : 1080 }
+          },
+          audio: false
+        };
 
-        // Override the facingMode in the constraints
-        if (constraints.video && typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            facingMode: facingMode
-          };
-        }
+        console.log("Using camera constraints:", JSON.stringify(constraints));
 
         // Attempt to get camera stream
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -266,7 +266,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           };
         }
       } catch (cameraError) {
-        console.error("Error accessing camera with optimal constraints:", cameraError);
+        console.error("Error accessing camera with constraints:", cameraError);
 
         // Fallback to basic constraints
         try {
@@ -418,17 +418,21 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
   // Function to switch between front and rear cameras
   const switchCamera = () => {
+    console.log(`Switching camera from ${facingMode} to ${facingMode === 'user' ? 'environment' : 'user'}`);
+
     // Toggle facing mode
     const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newFacingMode);
 
     // If already scanning, restart with new camera
     if (scanning) {
+      console.log("Restarting scanner with new camera");
       stopScanning();
+
       // Small delay to ensure resources are released
       setTimeout(() => {
         startScanning();
-      }, 500);
+      }, 1000);
     }
   };
 
