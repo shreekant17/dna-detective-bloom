@@ -95,9 +95,9 @@ const SequenceUploader: React.FC<SequenceUploaderProps> = ({ onSequenceSubmit })
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-4 mb-4">
-            <TabsTrigger value="manual">Manual Entry</TabsTrigger>
-            <TabsTrigger value="file">File Upload</TabsTrigger>
-            <TabsTrigger value="barcode">Scan Barcode</TabsTrigger>
+            <TabsTrigger value="manual">Manual</TabsTrigger>
+            <TabsTrigger value="file">Upload</TabsTrigger>
+            <TabsTrigger value="barcode">Scan</TabsTrigger>
             <TabsTrigger value="samples">Samples</TabsTrigger>
           </TabsList>
 
