@@ -665,10 +665,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               <QrCode className="h-4 w-4" />
               QR Code
             </TabsTrigger>
-            {/* <TabsTrigger value="barcode" className="flex items-center gap-2">
+            <TabsTrigger value="barcode" className="flex items-center gap-2">
               <Barcode className="h-4 w-4" />
               Barcode
-            </TabsTrigger> */}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
