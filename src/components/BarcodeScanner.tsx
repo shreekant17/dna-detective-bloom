@@ -328,7 +328,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     console.log("Processing barcode:", barcodeData);
     setScanResult(barcodeData);
 
-    if (isValidBarcode(barcodeData)) {
+    if (isValidBarcode(barcodeData, scanMode)) {
       try {
         const dnaSequence = await extractDNAFromBarcode(barcodeData);
 
@@ -337,8 +337,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           stopScanning();
 
           toast({
-            title: "Barcode Detected",
-            description: `Found barcode: ${barcodeData}`,
+            title: scanMode === 'qr' ? "QR Code Detected" : "Barcode Detected",
+            description: `Found ${scanMode === 'qr' ? 'QR code' : 'barcode'}: ${barcodeData}`,
           });
 
           onSequenceFound(dnaSequence);
@@ -362,7 +362,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       console.log("Invalid barcode format detected");
       toast({
         title: "Invalid Barcode Format",
-        description: "The scanned barcode is not in a recognized format.",
+        description: `The scanned ${scanMode === 'qr' ? 'QR code' : 'barcode'} is not in a recognized format.`,
         variant: "destructive",
       });
     }

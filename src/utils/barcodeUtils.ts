@@ -36,11 +36,18 @@ export const extractDNAFromBarcode = async (barcodeData: string): Promise<string
 };
 
 // Function to validate if a string could be a barcode
-export const isValidBarcode = (code: string): boolean => {
-  // Simple validation - barcodes usually have a specific format
-  const isValid = /^[A-Z0-9]+$/.test(code) && code.length >= 3;
-  console.log(`Validating barcode "${code}": ${isValid}`);
-  return isValid;
+export const isValidBarcode = (code: string, scanMode: 'qr' | 'barcode' = 'barcode'): boolean => {
+  if (scanMode === 'qr') {
+    // QR codes can contain any text, so we just need to check if it's not empty
+    const isValid = code.length > 0;
+    console.log(`Validating QR code "${code}": ${isValid}`);
+    return isValid;
+  } else {
+    // Traditional barcodes usually have a specific format
+    const isValid = /^[A-Z0-9]+$/.test(code) && code.length >= 3;
+    console.log(`Validating barcode "${code}": ${isValid}`);
+    return isValid;
+  }
 };
 
 // Create a barcode reader instance with optimizations for mobile
