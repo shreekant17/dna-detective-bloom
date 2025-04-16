@@ -290,7 +290,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
 
         try {
           // Get optimal camera constraints based on device and scan mode
-          const constraints = await getOptimalCameraConstraints(isMobile, scanMode);
+          const constraints = await getOptimalCameraConstraints(isMobile, scanMode) as MediaStreamConstraints;
           console.log("Using camera constraints:", JSON.stringify(constraints));
 
           // Check if getUserMedia is supported
@@ -387,7 +387,11 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           try {
             console.log("Trying fallback camera access method...");
             const stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
+              video: {
+                facingMode: facingMode,
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+              },
               audio: false
             });
             console.log("Fallback camera stream obtained successfully");

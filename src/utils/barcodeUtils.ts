@@ -113,72 +113,53 @@ export const processBarcodeResult = (result: Result): string => {
 };
 
 // Function to handle camera selection for mobile devices
-export const getOptimalCameraConstraints = async (isMobile: boolean, scanMode: 'qr' | 'barcode' = 'qr'): Promise<MediaStreamConstraints> => {
-  try {
-    // First try to enumerate available devices to find rear camera on mobile
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+export const getOptimalCameraConstraints = async (isMobile: boolean, scanMode: 'qr' | 'barcode' = 'barcode'): Promise<MediaStreamConstraints> => {
+  console.log(`Getting optimal camera constraints for ${isMobile ? 'mobile' : 'desktop'} device in ${scanMode} mode`);
 
-    console.log(`Found ${videoDevices.length} video input devices`);
+  // Base constraints that work well for most devices
+  const baseConstraints: MediaTrackConstraints = {
+    facingMode: 'environment',
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    aspectRatio: { ideal: 16 / 9 }
+  };
 
-    if (isMobile && videoDevices.length > 0) {
-      // Look for keywords in device labels that might indicate rear camera
-      const rearCameraKeywords = ['back', 'rear', 'environment', '0', 'main'];
-
-      // Log all available video devices to help with debugging
-      videoDevices.forEach((device, index) => {
-        console.log(`Camera ${index}: ${device.label || 'unnamed'} (${device.deviceId.substring(0, 8)}...)`);
-      });
-
-      // Try to find rear camera by looking for common keywords in labels
-      const rearCamera = videoDevices.find(device => {
-        const label = device.label.toLowerCase();
-        return rearCameraKeywords.some(keyword => label.includes(keyword));
-      });
-
-      if (rearCamera) {
-        console.log(`Selected rear camera: ${rearCamera.label}`);
-        return {
-          video: {
-            deviceId: { exact: rearCamera.deviceId },
-            width: { min: 640, ideal: scanMode === 'qr' ? 1280 : 1920, max: 1920 },
-            height: { min: 480, ideal: scanMode === 'qr' ? 720 : 1080, max: 1080 },
-            facingMode: "environment"
-          },
-          audio: false
-        };
-      }
-
-      // If we couldn't identify a rear camera by label, use facingMode constraint
-      console.log("Using facingMode: environment as fallback");
-      return {
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { min: 640, ideal: scanMode === 'qr' ? 1280 : 1920, max: 1920 },
-          height: { min: 480, ideal: scanMode === 'qr' ? 720 : 1080, max: 1080 }
-        },
-        audio: false
-      };
-    }
-
-    // For desktop or if mobile detection failed
-    console.log(`Using ${isMobile ? 'mobile' : 'desktop'} default camera settings`);
+  // Mobile-specific optimizations
+  if (isMobile) {
+    // For mobile devices, prioritize performance over resolution
     return {
       video: {
-        width: { ideal: scanMode === 'qr' ? 1280 : 1920 },
-        height: { ideal: scanMode === 'qr' ? 720 : 1080 },
-        facingMode: isMobile ? "environment" : "user"
+        ...baseConstraints,
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        frameRate: { ideal: 30, max: 60 },
+        // Add mobile-specific constraints
+        advanced: [
+          { width: { min: 640 }, height: { min: 480 } }, // Minimum resolution
+          { aspectRatio: { ideal: 16 / 9 } }, // Preferred aspect ratio
+          { frameRate: { min: 15 } } // Minimum frame rate
+        ]
       },
       audio: false
     };
-  } catch (error) {
-    console.error("Error during device enumeration:", error);
-    // Fallback to basic constraints
-    return {
-      video: true,
-      audio: false
-    };
   }
+
+  // Desktop-specific optimizations
+  return {
+    video: {
+      ...baseConstraints,
+      width: { ideal: 1920, max: 2560 },
+      height: { ideal: 1080, max: 1440 },
+      frameRate: { ideal: 30, max: 60 },
+      // Add desktop-specific constraints
+      advanced: [
+        { width: { min: 1280 }, height: { min: 720 } }, // Higher minimum resolution
+        { aspectRatio: { ideal: 16 / 9 } }, // Preferred aspect ratio
+        { frameRate: { min: 24 } } // Higher minimum frame rate
+      ]
+    },
+    audio: false
+  };
 };
 
 // Check if the current browser supports modern camera access APIs
