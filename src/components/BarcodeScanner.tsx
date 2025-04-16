@@ -204,10 +204,22 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         // Use ZXing for traditional barcodes
         if (!readerRef.current) {
           console.error("Barcode reader not initialized");
-          return;
+          // Try to reinitialize the reader if it's missing
+          try {
+            console.log("Attempting to reinitialize barcode reader");
+            readerRef.current = createBarcodeReader(scanMode);
+            if (!readerRef.current) {
+              console.error("Failed to reinitialize barcode reader");
+              return;
+            }
+          } catch (error) {
+            console.error("Error reinitializing barcode reader:", error);
+            return;
+          }
         }
 
         try {
+          // Try to decode from the video element directly
           const result = readerRef.current.decode(video);
 
           if (result && typeof result.getText === 'function') {
@@ -259,20 +271,27 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
       // Only create a barcode reader if we're in barcode mode
       if (scanMode === 'barcode') {
         console.log("Creating barcode reader for mode:", scanMode);
-        readerRef.current = createBarcodeReader(scanMode);
+        try {
+          // Create a new barcode reader with the current scan mode
+          readerRef.current = createBarcodeReader(scanMode);
+
+          // Verify the reader was created successfully
+          if (!readerRef.current) {
+            throw new Error("Failed to create barcode reader");
+          }
+
+          console.log("Barcode reader created successfully:", readerRef.current);
+        } catch (readerError) {
+          console.error("Error creating barcode reader:", readerError);
+          setErrorMessage(`Error initializing barcode reader: ${(readerError as Error).message}`);
+          setIsInitializing(false);
+          return;
+        }
 
         try {
-          // Try with minimal constraints first
-          const constraints = {
-            video: {
-              facingMode: facingMode,
-              width: { min: 640, ideal: 1280, max: 1920 },
-              height: { min: 480, ideal: 720, max: 1080 }
-            },
-            audio: false
-          };
-
-          console.log("Attempting to access camera with constraints:", JSON.stringify(constraints));
+          // Get optimal camera constraints based on device and scan mode
+          const constraints = await getOptimalCameraConstraints(isMobile, scanMode);
+          console.log("Using camera constraints:", JSON.stringify(constraints));
 
           // Check if getUserMedia is supported
           if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -326,7 +345,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
                   window.clearInterval(decodeIntervalRef.current);
                 }
 
-                const interval = 300; // 300ms for barcode scanning
+                const interval = 200; // 200ms for barcode scanning (faster than before)
                 console.log(`Setting scan interval to ${interval}ms for barcode mode`);
                 decodeIntervalRef.current = window.setInterval(captureAndDecode, interval);
               })
@@ -404,7 +423,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
                     window.clearInterval(decodeIntervalRef.current);
                   }
 
-                  decodeIntervalRef.current = window.setInterval(captureAndDecode, 300);
+                  decodeIntervalRef.current = window.setInterval(captureAndDecode, 200);
                 })
                 .catch(e => {
                   console.error("Error playing video (fallback):", e);
@@ -665,7 +684,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
                     height: { min: 480, ideal: 720, max: 1080 }
                   }
                 }}
-                videoStyle={{ width: '100%', height: '100%' }}
+                videoStyle={{ width: '100%', height: '100%', objectFit: isMobile ? 'cover' : 'contain' }}
                 videoId="qr-video"
                 scanDelay={300}
                 facingMode={facingMode}
@@ -680,7 +699,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover"
+              className={`w-full h-full ${isMobile ? 'object-cover' : 'object-contain'}`}
               style={{ display: scanning && cameraInitialized ? 'block' : 'none' }}
             />
           )}
@@ -688,7 +707,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
           {/* Canvas for displaying captured frame */}
           <canvas
             ref={canvasRef}
-            className="w-full h-full object-cover"
+            className={`w-full h-full ${isMobile ? 'object-cover' : 'object-contain'}`}
             style={{ display: !scanning ? 'block' : 'none' }}
           />
 

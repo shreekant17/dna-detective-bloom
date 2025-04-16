@@ -44,6 +44,7 @@ export const isValidBarcode = (code: string, scanMode: 'qr' | 'barcode' = 'barco
     return isValid;
   } else {
     // Traditional barcodes usually have a specific format
+    // Support for common barcode formats: CODE_128, CODE_39, EAN_13, EAN_8, UPC_A, UPC_E
     const isValid = /^[A-Z0-9]+$/.test(code) && code.length >= 3;
     console.log(`Validating barcode "${code}": ${isValid}`);
     return isValid;
@@ -208,20 +209,4 @@ export const checkBrowserCompatibility = (): { isCompatible: boolean; issues: st
     isCompatible: issues.length === 0,
     issues
   };
-};
-
-const handleQrScan = (data: any) => {
-  if (data) {
-    console.log("QR code detected:", data);
-    // Extract the text content from the result
-    const qrText = typeof data === 'string' ? data : data.text || data.data;
-
-    if (qrText) {
-      // Create a mock result object with getText method to match the expected format
-      const mockResult = {
-        getText: () => qrText
-      };
-      handleBarcodeDetected(mockResult);
-    }
-  }
 };
