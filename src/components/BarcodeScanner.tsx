@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Scan, Check, AlertCircle, Camera, CameraOff, RefreshCw, QrCode, Barcode } from 'lucide-react';
+import { Scan, Check, AlertCircle, Camera, CameraOff, RefreshCw, QrCode, Barcode, FlipHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
@@ -35,6 +35,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
   const [cameraPermissionState, setCameraPermissionState] = useState<PermissionState | null>(null);
   const initScannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [scanMode, setScanMode] = useState<'qr' | 'barcode'>('qr');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
   // Function to release camera resources
   const releaseCamera = useCallback(() => {
@@ -212,6 +213,14 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         const constraints = await getOptimalCameraConstraints(isMobile, scanMode);
         console.log("Using camera constraints:", JSON.stringify(constraints));
 
+        // Override the facingMode in the constraints
+        if (constraints.video && typeof constraints.video === 'object') {
+          constraints.video = {
+            ...constraints.video,
+            facingMode: facingMode
+          };
+        }
+
         // Attempt to get camera stream
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         streamRef.current = stream;
@@ -262,7 +271,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
         // Fallback to basic constraints
         try {
           console.log("Trying fallback camera access method...");
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facingMode },
+            audio: false
+          });
           streamRef.current = stream;
 
           if (videoRef.current) {
@@ -404,6 +416,22 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
     }
   };
 
+  // Function to switch between front and rear cameras
+  const switchCamera = () => {
+    // Toggle facing mode
+    const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(newFacingMode);
+
+    // If already scanning, restart with new camera
+    if (scanning) {
+      stopScanning();
+      // Small delay to ensure resources are released
+      setTimeout(() => {
+        startScanning();
+      }, 500);
+    }
+  };
+
   useEffect(() => {
     // Initial camera support check
     checkDeviceSupport();
@@ -500,6 +528,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onSequenceFound }) => {
                 <span className="text-center opacity-70">Camera inactive</span>
               </div>
             </div>
+          )}
+
+          {/* Camera switch button - only show when scanning */}
+          {scanning && cameraInitialized && (
+            <Button
+              onClick={switchCamera}
+              className="absolute bottom-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full p-2"
+              size="icon"
+              title={`Switch to ${facingMode === 'user' ? 'rear' : 'front'} camera`}
+            >
+              <FlipHorizontal className="h-5 w-5" />
+            </Button>
           )}
         </div>
 
