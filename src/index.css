@@ -1,0 +1,226 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+ 
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+ 
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+ 
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+ 
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+ 
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+ 
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+ 
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+ 
+    --radius: 0.5rem;
+  }
+ 
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+ 
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+ 
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+ 
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+ 
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+ 
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+ 
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+ 
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+ 
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+ 
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* DNA theme colors */
+:root {
+  --dna-blue: #0066cc;
+  --dna-teal: #00b8a9;
+  --dna-green: #5cb85c;
+  --dna-dark: #343a40;
+}
+
+.text-dna-blue {
+  color: var(--dna-blue);
+}
+
+.text-dna-teal {
+  color: var(--dna-teal);
+}
+
+.text-dna-green {
+  color: var(--dna-green);
+}
+
+.bg-dna-blue {
+  background-color: var(--dna-blue);
+}
+
+.bg-dna-teal {
+  background-color: var(--dna-teal);
+}
+
+.bg-dna-green {
+  background-color: var(--dna-green);
+}
+
+.bg-dna-dark {
+  background-color: var(--dna-dark);
+}
+
+/* DNA Double Helix Animation */
+.dna-double-helix {
+  position: relative;
+  width: 40px;
+  height: 80px;
+  margin: 0 auto;
+}
+
+.dna-strand {
+  position: absolute;
+  width: 40px;
+  height: 80px;
+  animation: rotate 4s linear infinite;
+}
+
+.dna-strand:before,
+.dna-strand:after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--dna-blue);
+  top: 0;
+  left: 0;
+  animation: oscillate 2s ease-in-out infinite;
+}
+
+.dna-strand:nth-child(2) {
+  animation-delay: 1s;
+}
+
+.dna-strand:nth-child(2):before,
+.dna-strand:nth-child(2):after {
+  background-color: var(--dna-teal);
+  animation-delay: 1s;
+}
+
+@keyframes rotate {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+
+@keyframes oscillate {
+  0%, 100% {
+    left: 0;
+  }
+  50% {
+    left: 30px;
+  }
+}
+
+/* Nucleotide styling */
+.nucleotide {
+  display: inline-block;
+  padding: 0 1px;
+  font-weight: bold;
+}
+
+.nucleotide-A {
+  color: green;
+}
+
+.nucleotide-T {
+  color: red;
+}
+
+.nucleotide-G {
+  color: blue;
+}
+
+.nucleotide-C {
+  color: purple;
+}
+
+/* Barcode scanner animation */
+@keyframes scan {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(100%);
+  }
+  51% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.animate-scan {
+  animation: scan 2s linear infinite;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
